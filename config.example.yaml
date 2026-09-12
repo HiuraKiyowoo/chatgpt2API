@@ -1,0 +1,14 @@
+server:
+  port: 8800
+  frontendPath: ./frontend/dist
+database:
+  path: ./data/chatgpt2api.db
+security:
+  jwtSecret: "CHANGE-ME-random-string"
+  credentialEncryptionKey: "CHANGE-ME-random-string"
+admin:
+  username: admin
+  password: "CHANGE-ME"
+solver:
+  enabled: false
+  url: http://127.0.0.1:7900

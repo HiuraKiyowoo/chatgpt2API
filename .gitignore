@@ -1,0 +1,9 @@
+data/
+logs/
+*.log
+config.yaml
+bin/
+node_modules/
+frontend/dist/
+*.pid
+.gocache/
