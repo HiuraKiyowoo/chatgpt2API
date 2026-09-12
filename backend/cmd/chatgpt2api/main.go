@@ -68,6 +68,18 @@ func main() {
 			h.AuthAdmin(h.AccountCheck)(w, r)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, "/auto-login") {
+			h.AuthAdmin(h.AutoLogin)(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/oauth-harvest") {
+			h.AuthAdmin(h.OAuthHarvest)(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/oauth-refresh") {
+			h.AuthAdmin(h.OAuthRefresh)(w, r)
+			return
+		}
 		h.AuthAdmin(h.AccountsDelete)(w, r)
 	})
 	mux.Handle("/api/keys", h.AuthAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -221,6 +221,111 @@ async function loginEmailPw(email, password, timeoutSec) {
   } finally { try { c.ws.close(); } catch {} proc.kill('SIGKILL'); }
 }
 
+// ---- OAuth harvest (jalur A: cookie Google -> authorization code) ----
+
+const OAuthRedirectURI = 'http://localhost:1455/auth/callback';
+
+function b64url(buf) {
+  return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function buildAuthorizeURL(challenge, state) {
+  const p = new URLSearchParams({
+    client_id: process.env.OAUTH_CLIENT_ID || 'app_EMoamEEZ73f0CkXaXp7hrann',
+    response_type: 'code',
+    redirect_uri: OAuthRedirectURI,
+    scope: 'openid profile email offline_access',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state: state,
+    prompt: 'consent',
+  });
+  return 'https://auth.openai.com/oauth/authorize?' + p.toString();
+}
+
+function normalizeCookies(raw) {
+  const out = [];
+  const push = (name, value, domain) => {
+    if (!name) return;
+    out.push({ name, value: value == null ? '' : String(value), domain: domain || '.google.com', path: '/', secure: true });
+  };
+  const t = String(raw || '').trim();
+  if (t.startsWith('[')) {
+    let arr;
+    try { arr = JSON.parse(t); } catch (e) { throw new Error('JSON cookie gak valid: ' + e.message); }
+    for (const c of arr) push(c.name, c.value, c.domain || '.google.com');
+    return out;
+  }
+  for (const part of t.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0) push(part.slice(0, i).trim(), part.slice(i + 1).trim(), '.google.com');
+  }
+  if (!out.length) throw new Error('cookie kosong / format gak kebaca');
+  return out;
+}
+
+async function harvestOAuthCode(cookiesRaw, authUrl, timeoutSec) {
+  const t0 = Date.now();
+  let cookies;
+  try { cookies = normalizeCookies(cookiesRaw); }
+  catch (e) { return { ok: false, error: e.message, timeSec: '0' }; }
+
+  const verifier = b64url(require('crypto').randomBytes(48));
+  const challenge = b64url(require('crypto').createHash('sha256').update(verifier).digest());
+  const state = 'cgt2api-' + b64url(require('crypto').randomBytes(8));
+  const url = authUrl && authUrl.length > 10 ? authUrl : buildAuthorizeURL(challenge, state);
+
+  const { proc, wsUrl } = await launch();
+  const c = connect(wsUrl);
+  let code = null, finalUrl = null, errText = '', sawConsent = false;
+  try {
+    await c.ready;
+    await c.send('Page.enable'); await c.send('Runtime.enable'); await c.send('Network.enable');
+    await c.send('Network.setCookies', { cookies });
+    await c.send('Page.navigate', { url });
+    while (Date.now() - t0 < timeoutSec * 1000) {
+      await sleep(1500);
+      let cur = '';
+      try {
+        const r = await c.send('Runtime.evaluate', { expression: 'location.href', returnByValue: true });
+        cur = (r.result && r.result.value) || '';
+      } catch { continue; }
+      finalUrl = cur;
+      if (cur.includes('code=')) {
+        const m = cur.match(/[?&]code=([^&]+)/);
+        if (m) { code = decodeURIComponent(m[1]); break; }
+      }
+      if (/[?&]error=/.test(cur)) {
+        const m = cur.match(/[?&]error=([^&]+)/);
+        errText = 'OAuth error: ' + decodeURIComponent(m[1]);
+        break;
+      }
+      if (/auth\.openai\.com\/log-in/.test(cur)) {
+        const r = await c.send('Runtime.evaluate', { expression: `document.body.innerText.slice(0,180).replace(/\\n/g,' | ')`, returnByValue: true }).catch(() => null);
+        errText = 'OpenAI minta login — cookie Google gak bikin sesi OAuth. Halaman: ' + ((r && r.result && r.result.value) || cur);
+        break;
+      }
+      if (/accounts\.google\.com/.test(cur) && !/oauth2/.test(cur)) {
+        const r = await c.send('Runtime.evaluate', { expression: `JSON.stringify({login:!!document.querySelector('input[type="password"],input[name="identifier"],input[type="email"]'),body:document.body.innerText.slice(0,150)})`, returnByValue: true }).catch(() => null);
+        const st = r ? JSON.parse(r.result.value || '{}') : {};
+        if (st.login) { errText = 'cookie Google expired — Google minta login: ' + (st.body || ''); break; }
+      }
+      if (/consent|authorize/i.test(cur)) {
+        sawConsent = true;
+        const r = await c.send('Runtime.evaluate', {
+          expression: `(()=>{const b=[...document.querySelectorAll('button')].find(x=>/allow|authorize|continue|accept/i.test(x.innerText.trim()));if(b){b.click();return b.innerText.trim();}return '';})()`,
+          returnByValue: true });
+        if (r.result.value) { await sleep(2000); continue; }
+      }
+    }
+    return {
+      ok: !!code, code, state, verifier, finalUrl, sawConsent,
+      error: code ? null : (errText || 'code gak ketangkep dalam batas waktu'),
+      timeSec: ((Date.now() - t0) / 1000).toFixed(1),
+    };
+  } finally { try { c.ws.close(); } catch {} proc.kill('SIGKILL'); }
+}
+
 // ---- HTTP server ----
 
 function readBody(req) {
@@ -254,6 +359,18 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const r = await loginEmailPw(body.email, body.password, body.timeoutSec || 150);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(r));
+      return;
+    }
+    if (req.method === 'POST' && url === '/oauth-harvest') {
+      const body = await readBody(req);
+      if (!body.cookies || !body.authUrl) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: 'cookies & authUrl wajib' }));
+        return;
+      }
+      const r = await harvestOAuthCode(body.cookies, body.authUrl, body.timeoutSec || 120);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(r));
       return;

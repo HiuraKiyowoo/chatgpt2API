@@ -67,14 +67,31 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 	h.Pool.AcquireInc(accID)
 
 	// refresh token kalau expired/hampir (60 detik sebelum)
-	if upstream.TokenExpiredAtauHampir(cred.AccessToken, time.Now().Unix()) && cred.Cookies != "" {
-		fresh, errRefresh := upstream.RefreshAccessToken(h.App.Upstream.HTTP, cred)
-		if errRefresh == nil && fresh != "" {
-			cred.AccessToken = fresh
-			// simpan token baru ke DB
-			key := h.App.Config.Security.CredentialEncryptionKey
-			tokEnc, _ := core.EncryptCredential(key, fresh)
-			h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ?, updated_at = ? WHERE id = ?`, tokEnc, core.Now(), accID)
+	if upstream.TokenExpiredAtauHampir(cred.AccessToken, time.Now().Unix()) {
+		key := h.App.Config.Security.CredentialEncryptionKey
+		var refreshTok string
+		// tipe oauth_refresh: credential_enc = refresh_token
+		var credEnc string
+		if err := h.App.DB.QueryRow(`SELECT credential_enc FROM accounts WHERE id = ?`, accID).Scan(&credEnc); err == nil {
+			if v, err2 := core.DecryptCredential(key, credEnc); err2 == nil && v != "" && !strings.HasPrefix(v, "eyJ") {
+				refreshTok = v
+			}
+		}
+		if refreshTok != "" {
+			// jalur cepat: HTTP murni, tanpa browser
+			if toks, errR := upstream.RefreshTokens(refreshTok); errR == nil && toks.AccessToken != "" {
+				cred.AccessToken = toks.AccessToken
+				tokEnc, _ := core.EncryptCredential(key, toks.AccessToken)
+				h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ?, status='valid', updated_at = ? WHERE id = ?`,
+					tokEnc, core.Now(), accID)
+			}
+		} else if cred.Cookies != "" {
+			// fallback: tukar cookie session jadi JWT
+			if fresh, errRefresh := upstream.RefreshAccessToken(h.App.Upstream.HTTP, cred); errRefresh == nil && fresh != "" {
+				cred.AccessToken = fresh
+				tokEnc, _ := core.EncryptCredential(key, fresh)
+				h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ?, updated_at = ? WHERE id = ?`, tokEnc, core.Now(), accID)
+			}
 		}
 	}
 

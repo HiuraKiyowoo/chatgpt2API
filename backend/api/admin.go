@@ -212,6 +212,69 @@ func (h *Handler) AccountCheck(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"status": status, "detail": msg})
 }
 
+// AutoLogin — POST /api/accounts/auto-login {email,password,label}
+// Panggil solver sidecar (browser) buat login email/pw, simpan akun hasil.
+func (h *Handler) AutoLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.App.Config.Solver.Enabled {
+		jsonErr(w, 400, "solver mati — set solver.enabled=true di config.yaml (butuh sidecar browser jalan)")
+		return
+	}
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Label    string `json:"label"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		jsonErr(w, 400, "JSON invalid")
+		return
+	}
+	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.Password) == "" {
+		jsonErr(w, 400, "email & password wajib")
+		return
+	}
+	res, err := h.App.Solver.Login(req.Email, req.Password, 150)
+	if err != nil {
+		h.App.Logs.Add("error", "auto-login", "solver error: "+err.Error(), req.Email)
+		jsonErr(w, 502, err.Error())
+		return
+	}
+	if !res.OK || (res.AccessToken == "" && res.SessionToken == "") {
+		stage := res.Stage
+		if res.Error != "" {
+			stage = res.Error
+		}
+		h.App.Logs.Add("warn", "auto-login", "gagal (stage="+stage+")", req.Email)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(401)
+		json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "stage": res.Stage, "detail": res.Error})
+		return
+	}
+	// simpan sebagai akun
+	id := "acc_" + core.RandomHex(8)
+	key := h.App.Config.Security.CredentialEncryptionKey
+	tokEnc, _ := core.EncryptCredential(key, res.AccessToken)
+	ckEnc, _ := core.EncryptCredential(key, res.Cookies)
+	label := req.Label
+	if label == "" {
+		label = req.Email
+	}
+	now := core.Now()
+	_, err = h.App.DB.Exec(`INSERT INTO accounts (id, label, credential_type, credential_enc, access_token_enc,
+		cookies_enc, cf_clearance, user_agent, status, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		id, label, "auto_login", tokEnc, tokEnc, ckEnc, res.CfClearance, res.UserAgent, "valid", now, now)
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	h.App.Logs.Add("info", "auto-login", "login sukses via solver", req.Email)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"ok": true, "id": id, "stage": res.Stage, "hasAccessToken": res.AccessToken != "",
+		"hasSessionToken": res.SessionToken != "",
+	})
+}
+
 func (h *Handler) poolCred(id string) (string, upstream.Credential, error) {
 	var tokEnc, ckEnc, cf, ua string
 	err := h.App.DB.QueryRow(`SELECT access_token_enc, cookies_enc, cf_clearance, user_agent FROM accounts WHERE id = ?`, id).
