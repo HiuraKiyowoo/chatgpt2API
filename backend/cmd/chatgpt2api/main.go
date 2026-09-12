@@ -80,6 +80,10 @@ func main() {
 			h.AuthAdmin(h.OAuthRefresh)(w, r)
 			return
 		}
+		if strings.HasSuffix(r.URL.Path, "/import-tokens") {
+			h.AuthAdmin(h.OAuthImport)(w, r)
+			return
+		}
 		h.AuthAdmin(h.AccountsDelete)(w, r)
 	})
 	mux.Handle("/api/keys", h.AuthAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

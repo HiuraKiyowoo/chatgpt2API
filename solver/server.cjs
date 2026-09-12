@@ -102,9 +102,13 @@ async function clickSubmit(c, re) {
   return r.result.value;
 }
 
-async function getAllCookies(c) {
-  const ck = await c.send('Network.getAllCookies').catch(() => null);
-  return ck ? ck.cookies : [];
+// getAllCookies HARUS dipanggil dengan sessionId target — kalau tanpa, Chromium balas
+// error -32601 "'Network.getAllCookies' wasn't found" (domain Network cuma aktif per-session).
+async function getAllCookies(c, sid) {
+  try {
+    const ck = sid ? await c.send('Network.getAllCookies', {}, sid) : await c.send('Network.getAllCookies');
+    return (ck && ck.cookies) || [];
+  } catch { return []; }
 }
 
 // ---- solver actions ----
@@ -245,20 +249,42 @@ function buildAuthorizeURL(challenge, state) {
 
 function normalizeCookies(raw) {
   const out = [];
-  const push = (name, value, domain) => {
-    if (!name) return;
-    out.push({ name, value: value == null ? '' : String(value), domain: domain || '.google.com', path: '/', secure: true });
+  // CDP Network.setCookies: field harus name/value/domain/path/secure + expires(int)/httpOnly/sameSite(enum).
+  // Field asing (expirationDate float, sameSite null, hostOnly, storeId, partitionKey) bikin error
+  // "Invalid cookie fields" -> SELURUH set cookie gagal, browser jalan tanpa cookie sama sekali.
+  const push = (name, value, domain, extra) => {
+    if (!name || typeof name !== 'string') return;
+    const c = {
+      name,
+      value: value == null ? '' : String(value),
+      domain: domain || '.google.com',
+      path: (extra && extra.path) || '/',
+      secure: !!(extra && extra.secure),
+      httpOnly: !!(extra && extra.httpOnly),
+    };
+    // __Secure- prefix WAJIB secure; kalau gak, Chrome buang cookie-nya diam-diam
+    if (/^__Secure-|^__Host-/.test(name)) c.secure = true;
+    // expires harus integer detik; Cookie-Editor kasih float (expirationDate)
+    const exp = extra && (extra.expires != null ? extra.expires : extra.expirationDate);
+    if (exp != null && !Number.isNaN(Number(exp))) c.expires = Math.floor(Number(exp));
+    // sameSite harus enum valid; null/undefined -> jangan dikirim
+    const ss = extra && extra.sameSite;
+    if (ss === 'strict' || ss === 'lax' || ss === 'none') c.sameSite = ss;
+    else if (ss === 'no_restriction') c.sameSite = 'none';
+    else if (ss === 'unspecified') c.sameSite = 'lax';
+    out.push(c);
   };
   const t = String(raw || '').trim();
   if (t.startsWith('[')) {
     let arr;
     try { arr = JSON.parse(t); } catch (e) { throw new Error('JSON cookie gak valid: ' + e.message); }
-    for (const c of arr) push(c.name, c.value, c.domain || '.google.com');
+    for (const c of arr) push(c.name, c.value, c.domain || '.google.com', c);
+    if (!out.length) throw new Error('cookie kosong / format gak kebaca');
     return out;
   }
   for (const part of t.split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) push(part.slice(0, i).trim(), part.slice(i + 1).trim(), '.google.com');
+    if (i > 0) push(part.slice(0, i).trim(), part.slice(i + 1).trim(), '.google.com', { secure: true });
   }
   if (!out.length) throw new Error('cookie kosong / format gak kebaca');
   return out;

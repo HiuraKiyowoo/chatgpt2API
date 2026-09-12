@@ -106,6 +106,65 @@ func (h *Handler) OAuthHarvest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// OAuthImport — POST /api/accounts/import-tokens
+// Body: {accessToken, refreshToken, idToken?, label?}
+// Jalur manual: authorize dilakukan manusia di browser, code ditukar di luar,
+// hasilnya di-import ke sini. Tanpa browser, tanpa solver.
+func (h *Handler) OAuthImport(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+		IDToken      string `json:"idToken"`
+		ExpiresIn    int    `json:"expiresIn"`
+		Label        string `json:"label"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		jsonErr(w, 400, "JSON invalid")
+		return
+	}
+	if strings.TrimSpace(req.RefreshToken) == "" {
+		jsonErr(w, 400, "refreshToken wajib (tanpa ini akun gak bisa di-refresh otomatis)")
+		return
+	}
+
+	id := "acc_" + core.RandomHex(8)
+	key := h.App.Config.Security.CredentialEncryptionKey
+	tokEnc, _ := core.EncryptCredential(key, req.AccessToken)
+	credEnc, _ := core.EncryptCredential(key, req.RefreshToken)
+	label := req.Label
+	if label == "" {
+		label = "manual-oauth"
+	}
+	now := core.Now()
+	if _, err := h.App.DB.Exec(`INSERT INTO accounts (id, label, credential_type, credential_enc, access_token_enc,
+		cookies_enc, cf_clearance, user_agent, status, created_at, updated_at)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+		id, label, "oauth_refresh", credEnc, tokEnc, "", "", "", "valid", now, now); err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	h.App.Logs.Add("info", "oauth", "import refresh_token manual", label)
+
+	// verifikasi langsung: refresh_token ini benar-benar bisa ditukar?
+	out := map[string]interface{}{"ok": true, "id": id, "label": label, "verify": "skip"}
+	if req.AccessToken == "" {
+		if toks, err := upstream.RefreshTokens(req.RefreshToken); err != nil {
+			h.App.DB.Exec(`UPDATE accounts SET status='invalid', last_error=?, updated_at=? WHERE id=?`,
+				core.Truncate(err.Error(), 300), core.Now(), id)
+			w.WriteHeader(502)
+			json.NewEncoder(w).Encode(map[string]interface{}{"ok": false, "id": id, "verify": err.Error()})
+			return
+		} else {
+			te, _ := core.EncryptCredential(key, toks.AccessToken)
+			h.App.DB.Exec(`UPDATE accounts SET access_token_enc=? WHERE id=?`, te, id)
+			out["verify"] = "ok"
+			out["expiresIn"] = toks.ExpiresIn
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 // OAuthRefresh — POST /api/accounts/{id}/oauth-refresh
 // Tes jalur runtime: tukar refresh_token jadi access_token baru (milidetik, tanpa browser).
 func (h *Handler) OAuthRefresh(w http.ResponseWriter, r *http.Request) {
