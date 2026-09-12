@@ -166,8 +166,15 @@ async function loginEmailPw(email, password, timeoutSec) {
       await sleep(3000);
       let st;
       try { st = await evalJSON(c, SNAP); } catch { continue; }
+      // page lagi navigasi (mis. pindah ke auth.openai.com) -> skip, jangan dianggap state
+      if (!st.url || !(st.body || st.title)) continue;
       log.push(st);
       if (st.arkose) { stage = 'arkose'; break; }
+
+      // auth ditolak upstream -> berhenti, jangan loop buang waktu
+      if (/incorrect|invalid|wrong|didn.?t match|try again/i.test(st.err || st.body || '')) {
+        stage = 'auth_fail'; break;
+      }
 
       if (st.otp) { stage = 'otp_email'; break; }
 
