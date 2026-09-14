@@ -26,6 +26,18 @@ type Credential struct {
 	UserAgent        string
 	OAIClientVersion string
 	ProxyURL         string
+	OAIDeviceID      string // device-id asli browser (cookie oai-did), dipakai mentah
+}
+
+// OAIDidFromCookies ambil nilai cookie oai-did (bukan HttpOnly; ada di string cookie).
+func OAIDidFromCookies(cookie string) string {
+	for _, kv := range strings.Split(cookie, ";") {
+		kv = strings.TrimSpace(kv)
+		if strings.HasPrefix(kv, "oai-did=") {
+			return strings.TrimSpace(strings.TrimPrefix(kv, "oai-did="))
+		}
+	}
+	return ""
 }
 
 // Part = potongan teks stream ke consumer.
@@ -200,7 +212,11 @@ func truncate(s string, n int) string {
 }
 
 func deviceID(cred Credential) string {
-	// oai-device-id boleh stabil per akun; hash dari token cukup.
+	// Device-id asli browser (oai-did) lebih dipercaya Cloudflare daripada hash.
+	if cred.OAIDeviceID != "" {
+		return cred.OAIDeviceID
+	}
+	// fallback stabil per akun: hash dari token.
 	if cred.AccessToken == "" {
 		return ""
 	}

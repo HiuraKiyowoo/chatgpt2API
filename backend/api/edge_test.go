@@ -70,6 +70,7 @@ func TestUpstream429SetsCooldown(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("CHATGPT_API_BASE", srv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 
 	id := seedOAuthAccount(t, h, cfg, jwtWithExp(time.Now().Add(time.Hour).Unix()), "rt-keep")
 	key := seedAPIKey(t, h)
@@ -101,6 +102,7 @@ func TestUpstream401MarksAccountInvalid(t *testing.T) {
 	}))
 	defer srv.Close()
 	t.Setenv("CHATGPT_API_BASE", srv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 	id := seedOAuthAccount(t, h, cfg, jwtWithExp(time.Now().Add(time.Hour).Unix()), "rt-x")
 	key := seedAPIKey(t, h)
 	rec := httptest.NewRecorder()
@@ -131,6 +133,7 @@ func TestChatStreamEmitsSSEChunks(t *testing.T) {
 	srv := mockConvStream(t, []string{"satu ", "dua ", "tiga"})
 	defer srv.Close()
 	t.Setenv("CHATGPT_API_BASE", srv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 	seedOAuthAccount(t, h, cfg, jwtWithExp(time.Now().Add(time.Hour).Unix()), "rt-x")
 	key := seedAPIKey(t, h)
 	body := `{"model":"gpt-5","stream":true,"messages":[{"role":"user","content":"x"}]}`

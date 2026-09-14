@@ -12,8 +12,27 @@ import (
 
 // JWTPayload datar kecil yang kita butuh dari accessToken.
 type JWTPayload struct {
-	Exp int64  `json:"exp"`
-	Sub string `json:"sub"`
+	Exp       int64  `json:"exp"`
+	Sub       string `json:"sub"`
+	AccountID string `json:"chatgpt_account_id"`
+}
+
+// JWTAccountID baca klaim chatgpt_account_id dari accessToken (dipakai header
+// ChatGPT-Account-Id jalur android). "" kalau gak ada.
+func JWTAccountID(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var p JWTPayload
+	if json.Unmarshal(raw, &p) != nil {
+		return ""
+	}
+	return p.AccountID
 }
 
 // JWTExp ambil klaim exp dari accessToken tanpa verifikasi (kita cuma

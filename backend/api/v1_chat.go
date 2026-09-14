@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -105,7 +106,7 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parts, err := h.App.Upstream.Stream(cred, modelSlug(req.Model), turns, "root")
+	parts, err := h.streamAnyRoute(cred, modelSlug(req.Model), turns)
 	if err != nil {
 		h.Pool.ReportUpdate(accID, false, err.Error(), cooldownFor(err))
 		h.writeUpstreamErr(w, err)
@@ -163,7 +164,8 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) writeUpstreamErr(w http.ResponseWriter, err error) {
-	if ue, ok := err.(*upstream.UpstreamError); ok {
+	var ue *upstream.UpstreamError
+	if errors.As(err, &ue) {
 		apiErr(w, mapStatus(ue.Status), "upstream_error", ue.Error())
 		return
 	}
@@ -186,7 +188,8 @@ func mapStatus(s int) int {
 }
 
 func cooldownFor(err error) int64 {
-	if ue, ok := err.(*upstream.UpstreamError); ok {
+	var ue *upstream.UpstreamError
+	if errors.As(err, &ue) {
 		if ue.Status == 429 {
 			return 300
 		}

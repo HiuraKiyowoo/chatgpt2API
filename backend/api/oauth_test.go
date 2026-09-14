@@ -323,6 +323,7 @@ func TestChatPathStoresRotatedRefreshToken(t *testing.T) {
 	defer convSrv.Close()
 	t.Setenv("OPENAI_AUTH_BASE", authSrv.URL)
 	t.Setenv("CHATGPT_API_BASE", convSrv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 
 	expired := jwtWithExp(time.Now().Add(-time.Hour).Unix())
 	id := seedOAuthAccount(t, h, cfg, expired, "rt-ORIGINAL")
@@ -372,6 +373,7 @@ func TestChatPathRejectsDeadRefreshToken(t *testing.T) {
 	defer convSrv.Close()
 	t.Setenv("OPENAI_AUTH_BASE", authSrv.URL)
 	t.Setenv("CHATGPT_API_BASE", convSrv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 
 	expired := jwtWithExp(time.Now().Add(-time.Hour).Unix())
 	id := seedOAuthAccount(t, h, cfg, expired, "rt-DEAD")
@@ -408,6 +410,7 @@ func TestChatPathKeepsWorkingWhenTokenStillValid(t *testing.T) {
 	convSrv := mockConv(t, &hits)
 	defer convSrv.Close()
 	t.Setenv("CHATGPT_API_BASE", convSrv.URL)
+	t.Setenv("ANDROID_API_BASE", "http://127.0.0.1:9")
 	authSrv := mockOAuth(t, "SHOULD-NOT-BE-USED", false)
 	defer authSrv.Close()
 	t.Setenv("OPENAI_AUTH_BASE", authSrv.URL)

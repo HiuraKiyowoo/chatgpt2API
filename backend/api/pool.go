@@ -94,6 +94,7 @@ func (p *Pool) Acquire() (id string, cred upstream.Credential, err error) {
 		CFClearance:      best.cf,
 		UserAgent:        best.ua,
 		OAIClientVersion: best.ver,
+		OAIDeviceID:      upstream.OAIDidFromCookies(ck),
 	}
 	return best.id, cred, nil
 }
