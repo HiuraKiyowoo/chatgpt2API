@@ -32,6 +32,6 @@ print("cookie dikirim:", ", ".join(names))
 print("panen jalan (browser headless buka authorize)... tunggu sampai 2 menit\n")
 
 st, b, el = post("/api/accounts/oauth-harvest",
-                 {"cookies": cookies, "label": "justinaxcl26 (oauth-google)"}, tok)
+                 {"cookies": cookies, "label": "akun-oauth-google"}, tok)
 print("--- HASIL (%.1f detik, HTTP %s) ---" % (el, st))
 print(json.dumps(b, indent=2, ensure_ascii=False)[:1500])

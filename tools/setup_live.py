@@ -35,7 +35,7 @@ tok = j["token"]
 
 # seed akun: accessToken + cookies lengkap + UA (wajib sama dgn saat fetch)
 st, j = api("/api/accounts", {
-    "label": "Robin (robinvschina@gmail.com) — session cookie",
+    "label": "Robin — session cookie",
     "accessToken": ses["accessToken"],
     "cookies": ses["cookies"],
     "userAgent": ses["user_agent"],
