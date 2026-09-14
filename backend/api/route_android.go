@@ -8,8 +8,8 @@ import (
 // streamAnyRoute: cobain jalur ANDROID dulu (bebas challenge Cloudflare),
 // fallback ke jalur web kalau android gagal — termasuk 403 "unusual activity".
 // Return error HANYA kalau dua-duanya gagal.
-func (h *Handler) streamAnyRoute(cred upstream.Credential, model string, turns []upstream.ChatTurn) (<-chan upstream.Part, error) {
-	parts, errA := h.App.Upstream.StreamAndroid(cred, model, turns, "root")
+func (h *Handler) streamAnyRoute(cred upstream.Credential, model string, turns []upstream.ChatTurn, feat upstream.ChatFeatures) (<-chan upstream.Part, error) {
+	parts, errA := h.App.Upstream.StreamAndroid(cred, model, turns, "root", feat)
 	if errA == nil {
 		return parts, nil
 	}
@@ -18,7 +18,7 @@ func (h *Handler) streamAnyRoute(cred upstream.Credential, model string, turns [
 	if ue, ok := errA.(*upstream.UpstreamError); ok && ue.Status == 401 {
 		return nil, errA
 	}
-	partsW, errW := h.App.Upstream.Stream(cred, model, turns, "root")
+	partsW, errW := h.App.Upstream.Stream(cred, model, turns, "root", feat)
 	if errW == nil {
 		return partsW, nil
 	}

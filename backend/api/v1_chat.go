@@ -23,13 +23,16 @@ func NewHandler(a *app.Core) *Handler {
 	return &Handler{App: a, Pool: NewPool(a)}
 }
 
-// Models daftar alias model (semua route ke upstream web yang sama).
+// Models daftar alias model (semua route ke upstream web yang sama),
+// termasuk varian fitur: suffix "-web" / "-thinking" (lihat parseChatFeatures).
 func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
-	models := make([]map[string]interface{}, 0, len(core.ModelAliases))
+	models := make([]map[string]interface{}, 0, len(core.ModelAliases)*3)
 	for _, m := range core.ModelAliases {
-		models = append(models, map[string]interface{}{
-			"id": m, "object": "model", "owned_by": "chatgpt2api",
-		})
+		models = append(models,
+			map[string]interface{}{"id": m, "object": "model", "owned_by": "chatgpt2api"},
+			map[string]interface{}{"id": m + "-web", "object": "model", "owned_by": "chatgpt2api"},
+			map[string]interface{}{"id": m + "-thinking", "object": "model", "owned_by": "chatgpt2api"},
+		)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"object": "list", "data": models})
@@ -106,7 +109,8 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	parts, err := h.streamAnyRoute(cred, modelSlug(req.Model), turns)
+	slug, feat := parseChatFeatures(req.Model)
+	parts, err := h.streamAnyRoute(cred, modelSlug(slug), turns, feat)
 	if err != nil {
 		h.Pool.ReportUpdate(accID, false, err.Error(), cooldownFor(err))
 		h.writeUpstreamErr(w, err)
@@ -203,7 +207,7 @@ func cooldownFor(err error) int64 {
 
 func aliasValid(m string) bool {
 	for _, a := range core.ModelAliases {
-		if m == a {
+		if m == a || strings.HasPrefix(m, a+"-") {
 			return true
 		}
 	}
@@ -213,4 +217,33 @@ func aliasValid(m string) bool {
 // modelSlug: upstream web pakai slug "gpt-5" dsb — sementara 1:1 dengan alias.
 func modelSlug(alias string) string {
 	return alias
+}
+
+// parseChatFeatures membaca fitur dari suffix model gaya OpenRouter:
+//
+//	gpt-5-web          -> web_search
+//	gpt-5-thinking     -> reasoning effort high
+//	gpt-5-web-thinking -> keduanya (urutan suffix bebas)
+//
+// alias "-thinking" juga memicu model slug "gpt-5-thinking" yang valid upstream.
+func parseChatFeatures(m string) (string, upstream.ChatFeatures) {
+	var f upstream.ChatFeatures
+	base := m
+	for {
+		if strings.HasSuffix(base, "-web") {
+			f.WebSearch = true
+			base = strings.TrimSuffix(base, "-web")
+			continue
+		}
+		if strings.HasSuffix(base, "-thinking") {
+			f.Reasoning = "high"
+			base = strings.TrimSuffix(base, "-thinking")
+			continue
+		}
+		break
+	}
+	if f.Reasoning != "" && !strings.HasSuffix(m, "-web") {
+		base = base + "-thinking" // pakai model thinking khusus bila hanya thinking diminta
+	}
+	return base, f
 }

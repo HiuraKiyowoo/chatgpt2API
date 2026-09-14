@@ -77,6 +77,9 @@ type convRequest struct {
 	SystemHints        []string      `json:"system_hints"`
 	ConversationID     *string       `json:"conversation_id,omitempty"`
 	ParentMessageID    *string       `json:"parent_message_id,omitempty"`
+	// WithMessageOptions fitur opsional upstream: {"reasoning":{"effort":"high"}}
+	// dan/atau {"tools":[{"type":"web_search"}]} — terbukti diterima android & web.
+	WithMessageOptions interface{} `json:"with_message_options,omitempty"`
 }
 
 type convMode struct {
@@ -141,8 +144,8 @@ func ChatBase() string {
 	return chatBaseDefault
 }
 
-func (c *Client) Stream(cred Credential, model string, history []ChatTurn, parentID string) (<-chan Part, error) {
-	req := buildConvRequest(model, history, parentID)
+func (c *Client) Stream(cred Credential, model string, history []ChatTurn, parentID string, feat ChatFeatures) (<-chan Part, error) {
+	req := buildConvRequest(model, history, parentID, feat)
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -225,7 +228,27 @@ func deviceID(cred Credential) string {
 	return fmt.Sprintf("%s-%s-%s-%s-%s", h[:8], h[8:12], h[12:16], h[16:20], h[20:32])
 }
 
-func buildConvRequest(model string, history []ChatTurn, parentID string) convRequest {
+// ChatFeatures fitur opsional per-request (web_search / reasoning effort).
+type ChatFeatures struct {
+	WebSearch bool
+	Reasoning string // "low" | "medium" | "high"; "" = default upstream
+}
+
+func (f ChatFeatures) options() interface{} {
+	if f.Reasoning == "" && !f.WebSearch {
+		return nil
+	}
+	opts := map[string]interface{}{}
+	if f.Reasoning != "" {
+		opts["reasoning"] = map[string]string{"effort": f.Reasoning}
+	}
+	if f.WebSearch {
+		opts["tools"] = []map[string]string{{"type": "web_search"}}
+	}
+	return opts
+}
+
+func buildConvRequest(model string, history []ChatTurn, parentID string, feat ChatFeatures) convRequest {
 	msgs := make([]convMessage, 0, len(history))
 	for i, t := range history {
 		m := convMessage{
@@ -256,6 +279,7 @@ func buildConvRequest(model string, history []ChatTurn, parentID string) convReq
 		SystemHints:        []string{},
 		ConversationID:     convID,
 		ParentMessageID:    pid,
+		WithMessageOptions: feat.options(),
 	}
 }
 

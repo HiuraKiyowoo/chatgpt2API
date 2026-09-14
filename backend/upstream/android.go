@@ -89,7 +89,7 @@ func (c *Client) AndroidSentinel() (string, error) {
 // StreamAndroid = Padanan Stream() tapi lewat backend aplikasi Android.
 // Kredensial yang dibutuhkan: accessToken (JWT web bisa dipakai — terbukti),
 // dan account_id diambil dari klaim JWT yang sama.
-func (c *Client) StreamAndroid(cred Credential, model string, history []ChatTurn, parentID string) (<-chan Part, error) {
+func (c *Client) StreamAndroid(cred Credential, model string, history []ChatTurn, parentID string, feat ChatFeatures) (<-chan Part, error) {
 	if strings.TrimSpace(cred.AccessToken) == "" {
 		return nil, fmt.Errorf("StreamAndroid: accessToken kosong")
 	}
@@ -107,7 +107,7 @@ func (c *Client) StreamAndroid(cred Credential, model string, history []ChatTurn
 		cookie = sc
 	}
 
-	reqBody := buildConvRequest(model, history, parentID)
+	reqBody := buildConvRequest(model, history, parentID, feat)
 	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
