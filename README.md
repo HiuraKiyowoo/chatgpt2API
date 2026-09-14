@@ -45,6 +45,33 @@ Server jalan di `http://0.0.0.0:8800`. Dashboard: buka di browser.
 
 ## Menambah akun
 
+### Jalur OAuth (disarankan) — refresh_token, bebas browser setelah sekali authorize
+
+Akun tipe `oauth_refresh` gak pernah butuh browser lagi: runtime tukar `refresh_token`
+→ `access_token` via HTTP murni (`auth.openai.com/oauth/token`, terbukti reachable tanpa
+Cloudflare challenge). Sekali authorize di browser lu sendiri, selamanya HTTP.
+
+```bash
+# 1. cetak URL authorize (PKCE disimpan di data/pkce_state.json)
+python3 oauth_manual.py url
+
+# 2. BUKA URL ITU DI BROWSER YANG SUDAH LOGIN ChatGPT (HP/laptop, jangan profil baru
+#    di server — profil asing pemancing gate verifikasi nomor). Setelah consent,
+#    browser di-redirect ke http://localhost:1455/auth/callback?code=***
+#    URL gak akan kebuka — itu normal. SALIN nilai code dari address bar.
+
+# 3. tukar code -> token -> simpan ke gateway (login admin buat header auth)
+GATEWAY_PASS=*** GATEWAY_URL=http://127.0.0.1:8800   python3 oauth_manual.py tukar '<code ATAU URL callback penuh>'
+```
+
+Token disimpan terenkripsi AES-256-GCM. Saat `access_token` mau kedaluwarsa, gateway
+refresh sendiri **dan menyimpan refresh_token hasil rotasi** (OpenAI me-rotasi; kalau
+rotasi dibuang akun mati permanen — sudah ditutup sama test di `backend/api/oauth_test.go`).
+Kalau gateway gak reachable, script nulis `data/oauth_tokens.json` (0600) yang bisa
+di-POST manual ke `/api/accounts/import-tokens`.
+
+### Jalur cookie (lama) — accessToken + session cookie
+
 Dashboard → **Accounts** → Tambah:
 1. **accessToken** (JWT `eyJhbGci...`) — dari chatgpt.com login → DevTools → Application → Cookies → salin `__Secure-next-auth.session-token`, ATAU localStorage key `@@/auth` → ambil `accessToken`.
 2. **Cookies** (opsional tapi disarankan) — cookie string lengkap, buat auto-refresh JWT.

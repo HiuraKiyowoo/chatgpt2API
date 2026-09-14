@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
 const (
-	convURL    = "https://chatgpt.com/backend-api/conversation"
-	defaultUA  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-	clientVers = "2025-01-13"
+	chatBaseDefault  = "https://chatgpt.com"
+	defaultUA        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	clientVers       = "2025-01-13"
 )
 
 // Credential = kredensial satu akun (didekripsi dari DB).
@@ -119,13 +120,22 @@ type convError struct {
 }
 
 // Stream kirim conversation request, balikin channel part streaming.
+// ChatBase = asal endpoint backend-api. Default resmi; override lewat
+// CHATGPT_API_BASE khusus test (mock upstream), bukan untuk produksi.
+func ChatBase() string {
+	if v := strings.TrimSpace(os.Getenv("CHATGPT_API_BASE")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return chatBaseDefault
+}
+
 func (c *Client) Stream(cred Credential, model string, history []ChatTurn, parentID string) (<-chan Part, error) {
 	req := buildConvRequest(model, history, parentID)
 	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
-	httpReq, err := http.NewRequest("POST", convURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequest("POST", ChatBase()+"/backend-api/conversation", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +310,7 @@ type ChatTurn struct {
 
 // HealthCheck test kredensial ke endpoint ringan /models.
 func (c *Client) HealthCheck(cred Credential) (bool, string, error) {
-	req, err := http.NewRequest("GET", "https://chatgpt.com/backend-api/models?history_and_training=false", nil)
+	req, err := http.NewRequest("GET", ChatBase()+"/backend-api/models?history_and_training=false", nil)
 	if err != nil {
 		return false, "", err
 	}

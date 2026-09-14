@@ -79,11 +79,21 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 		}
 		if refreshTok != "" {
 			// jalur cepat: HTTP murni, tanpa browser
-			if toks, errR := upstream.RefreshTokens(refreshTok); errR == nil && toks.AccessToken != "" {
+			toks, errR := upstream.RefreshTokens(refreshTok)
+			if errR == nil && toks.AccessToken != "" {
 				cred.AccessToken = toks.AccessToken
-				tokEnc, _ := core.EncryptCredential(key, toks.AccessToken)
-				h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ?, status='valid', updated_at = ? WHERE id = ?`,
-					tokEnc, core.Now(), accID)
+				// refresh_token hasil rotasi WAJIB ikut disimpan; kalau dibuang,
+				// yang di DB jadi basi dan akun mati permanen.
+				if errSave := h.saveOAuthTokens(accID, toks); errSave != nil {
+					h.App.Logs.Add("error", "oauth", "rotasi token gagal disimpan: "+errSave.Error(), accID)
+				}
+			} else if errR != nil {
+				// refresh_token ditolak = akun mati. JANGAN lanjut Stream pakai
+				// access_token basi (dobel hitung error + boong ke klien).
+				h.App.Logs.Add("warn", "oauth", "refresh_token ditolak upstream: "+errR.Error(), accID)
+				h.Pool.ReportUpdate(accID, false, "refresh_token invalid: "+core.Truncate(errR.Error(), 200), 0)
+				apiErr(w, 503, "account_unavailable", "refresh_token akun ditolak upstream: "+errR.Error())
+				return
 			}
 		} else if cred.Cookies != "" {
 			// fallback: tukar cookie session jadi JWT

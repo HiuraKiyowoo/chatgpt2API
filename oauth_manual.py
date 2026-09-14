@@ -8,7 +8,7 @@ Pakai:
 import base64, hashlib, json, os, secrets, sys, time, urllib.parse, urllib.request, urllib.error
 
 CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
-TOKEN_URL = "https://auth.openai.com/oauth/token"
+TOKEN_URL = os.environ.get("OPENAI_AUTH_BASE", "https://auth.openai.com").rstrip("/") + "/oauth/token"
 REDIRECT_URI = "http://localhost:1455/auth/callback"
 SCOPE = "openid profile email offline_access"
 AUTH_URL = "https://auth.openai.com/oauth/authorize"
@@ -84,20 +84,47 @@ def cmd_tukar(arg: str):
         print(json.dumps(toks, indent=2)[:800]); sys.exit(1)
 
     # simpan via gateway (biar terenkripsi di DB)
-    data = json.dumps({"tokens": toks, "label": "manual-oauth"}).encode()
-    req = urllib.request.Request("http://127.0.0.1:8800/api/accounts/import-tokens",
-                                 data=data, headers={"Content-Type": "application/json"})
+    save_tokens(toks)
+
+
+def admin_token(base, user, pw):
+    """Login admin -> JWT pendek. Route import dibungkus AuthAdmin, tanpa
+    header ini request ditolak 401 (itu bug yang bikin jalur manual gak pernah jalan)."""
+    body = json.dumps({"username": user, "password": pw}).encode()
+    req = urllib.request.Request(base + "/api/admin/login", data=body,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read().decode())["token"]
+
+
+def save_tokens(toks):
+    base = os.environ.get("GATEWAY_URL", "http://127.0.0.1:8800").rstrip("/")
+    user = os.environ.get("GATEWAY_USER") or "admin"
+    pw = os.environ.get("GATEWAY_PASS")
+    body = json.dumps({"tokens": toks, "label": os.environ.get("GATEWAY_LABEL", "manual-oauth")}).encode()
+    headers = {"Content-Type": "application/json"}
+    if pw:
+        try:
+            headers["Authorization"] = "Bearer " + admin_token(base, user, pw)
+        except Exception as e:
+            print("[!] login admin gagal:", e, "-- coba tanpa auth")
+    req = urllib.request.Request(base + "/api/accounts/import-tokens", data=body, headers=headers)
     try:
-        r = urllib.request.urlopen(req, timeout=30)
-        print("\n--- SIMPAN ---")
-        print(r.read().decode()[:600])
+        with urllib.request.urlopen(req, timeout=60) as r:
+            print("\n--- SIMPAN (via gateway) ---")
+            print(r.read().decode()[:600])
+            return
     except urllib.error.HTTPError as e:
-        print("\n[!] endpoint import belum ada (HTTP %s)" % e.code)
+        print("\n[!] gateway nolak (HTTP %s)" % e.code)
         print(e.read().decode()[:300])
-        # fallback: tulis mentah
-        with open("/root/chatgpt2API/data/oauth_tokens.json", "w") as f:
-            json.dump(toks, f, indent=2)
-        print("tokens ditulis ke data/oauth_tokens.json")
+    except Exception as e:
+        print("\n[!] gateway gak reachable:", e)
+    # fallback: tulis mentah (0600, jangan sampe kebaca user lain)
+    out = os.path.join(os.path.dirname(STATE_FILE), "oauth_tokens.json")
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(toks, f, indent=2)
+    print("tokens ditulis ke %s (chmod 600) — import manual lewat dashboard/API" % out)
 
 
 if __name__ == "__main__":

@@ -34,7 +34,8 @@ func JWTExp(token string) int64 {
 	return p.Exp
 }
 
-const sessionURL = "https://chatgpt.com/api/auth/session"
+// sessionURL ikut override CHATGPT_API_BASE (lihat ChatBase).
+func sessionURL() string { return ChatBase() + "/api/auth/session" }
 
 // RefreshAccessToken tukar cookie session jadi accessToken JWT baru.
 // Return (tokenBaru, pesanError). Kalau gagal, token lama tetap dipakai caller.
@@ -42,7 +43,7 @@ func RefreshAccessToken(httpCli *http.Client, cred Credential) (string, error) {
 	if strings.TrimSpace(cred.Cookies) == "" {
 		return "", fmt.Errorf("tidak ada cookie session buat refresh")
 	}
-	req, err := http.NewRequest("GET", sessionURL, nil)
+	req, err := http.NewRequest("GET", sessionURL(), nil)
 	if err != nil {
 		return "", err
 	}

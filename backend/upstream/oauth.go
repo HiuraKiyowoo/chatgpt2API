@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -16,11 +17,23 @@ import (
 // ---- OAuth konstanta (pake client_id resmi Codex CLI) ----
 
 const (
-	OAuthClientID   = "app_EMoamEEZ73f0CkXaXp7hrann"
-	OAuthTokenURL   = "https://auth.openai.com/oauth/token"
+	OAuthClientID    = "app_EMoamEEZ73f0CkXaXp7hrann"
 	OAuthRedirectURI = "http://localhost:1455/auth/callback"
 	OAuthScope       = "openid profile email offline_access"
+
+	authBaseDefault = "https://auth.openai.com"
 )
+
+// authBase = endpoint OAuth. Default resmi; OPENAI_AUTH_BASE cuma buat test/mock.
+func authBase() string {
+	if v := strings.TrimSpace(os.Getenv("OPENAI_AUTH_BASE")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return authBaseDefault
+}
+
+// OAuthTokenURL tetap diekspos untuk kompatibilitas; pakai authBase().
+func OAuthTokenURL() string { return authBase() + "/oauth/token" }
 
 func b64url(b []byte) string { return base64.RawURLEncoding.EncodeToString(b) }
 
@@ -96,7 +109,7 @@ func RefreshTokens(refreshToken string) (*OAuthTokens, error) {
 }
 
 func postToken(form url.Values) (*OAuthTokens, error) {
-	req, err := http.NewRequest("POST", OAuthTokenURL, strings.NewReader(form.Encode()))
+	req, err := http.NewRequest("POST", OAuthTokenURL(), strings.NewReader(form.Encode()))
 	if err != nil {
 		return nil, err
 	}
