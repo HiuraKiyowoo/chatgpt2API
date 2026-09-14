@@ -83,6 +83,7 @@ func consumeSSEPatch(body io.Reader, ch chan<- Part) {
 	var convID, messID, model, finish string
 	var usageIn, usageOut int
 	done := false
+	scrub := &entityScrubber{}
 
 	var handle func(raw json.RawMessage)
 	handle = func(raw json.RawMessage) {
@@ -117,7 +118,9 @@ func consumeSSEPatch(body io.Reader, ch chan<- Part) {
 		case ev.Op == "append" || (ev.Op == "" && len(ev.Path) == 0 && ev.Value != nil && ev.Value[0] == '"'):
 			// delta teks; path biasanya /message/content/parts/0, kadang implisit
 			if txt, ok := rawStr(ev.Value); ok && txt != "" {
-				ch <- Part{Text: txt}
+				if clean := scrub.feed(txt); clean != "" {
+					ch <- Part{Text: clean}
+				}
 			}
 		case ev.Op == "add":
 			var wrap struct {

@@ -66,8 +66,8 @@ func TestConsumeSSEPatchSynthetic(t *testing.T) {
 		map[string]interface{}{"p": "", "o": "add", "v": map[string]interface{}{
 			"message": map[string]interface{}{
 				"id": "a1", "conversation_id": "c1", "model_slug": "gpt-5",
-				"author": map[string]string{"role": "assistant"},
-				"status": "finished_successfully",
+				"author":  map[string]string{"role": "assistant"},
+				"status":  "finished_successfully",
 				"content": map[string]interface{}{"parts": []string{"HALO!"}},
 				"metadata": map[string]interface{}{
 					"finish_details": map[string]string{"type": "stop"},

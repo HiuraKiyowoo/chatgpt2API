@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	chatBaseDefault  = "https://chatgpt.com"
-	defaultUA        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-	clientVers       = "2025-01-13"
+	chatBaseDefault = "https://chatgpt.com"
+	defaultUA       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	clientVers      = "2025-01-13"
 )
 
 // Credential = kredensial satu akun (didekripsi dari DB).
@@ -42,14 +42,14 @@ func OAIDidFromCookies(cookie string) string {
 
 // Part = potongan teks stream ke consumer.
 type Part struct {
-	Text    string
-	Done    bool
-	Err     error
-	ConvID  string
-	MessID  string
-	Model   string
-	Finish  string
-	UsageIn int
+	Text     string
+	Done     bool
+	Err      error
+	ConvID   string
+	MessID   string
+	Model    string
+	Finish   string
+	UsageIn  int
 	UsageOut int
 }
 
@@ -64,19 +64,19 @@ func NewClient(proxyURL string) *Client {
 }
 
 type convRequest struct {
-	Action           string          `json:"action"`
-	Messages         []convMessage   `json:"messages"`
-	Model            string          `json:"model"`
-	TimezoneOffsetMin int            `json:"timezone_offset_min"`
+	Action             string        `json:"action"`
+	Messages           []convMessage `json:"messages"`
+	Model              string        `json:"model"`
+	TimezoneOffsetMin  int           `json:"timezone_offset_min"`
 	HistoryAndTraining bool          `json:"history_and_training"`
-	ConversationMode convMode        `json:"conversation_mode"`
-	ForceParagen     bool            `json:"force_paragen"`
-	ForceRateLimit   bool            `json:"force_rate_limit"`
+	ConversationMode   convMode      `json:"conversation_mode"`
+	ForceParagen       bool          `json:"force_paragen"`
+	ForceRateLimit     bool          `json:"force_rate_limit"`
 	WebsocketRequestID string        `json:"websocket_request_id"`
 	SupportedEncodings []string      `json:"supported_encodings"`
-	SystemHints      []string        `json:"system_hints"`
-	ConversationID   *string         `json:"conversation_id,omitempty"`
-	ParentMessageID  *string         `json:"parent_message_id,omitempty"`
+	SystemHints        []string      `json:"system_hints"`
+	ConversationID     *string       `json:"conversation_id,omitempty"`
+	ParentMessageID    *string       `json:"parent_message_id,omitempty"`
 }
 
 type convMode struct {
@@ -84,10 +84,10 @@ type convMode struct {
 }
 
 type convMessage struct {
-	ID       string        `json:"id"`
-	Role     string        `json:"role"`
-	Content  convContent   `json:"content"`
-	Metadata metadata      `json:"metadata"`
+	ID       string      `json:"id"`
+	Role     string      `json:"role"`
+	Content  convContent `json:"content"`
+	Metadata metadata    `json:"metadata"`
 }
 
 type metadata struct {
@@ -104,14 +104,14 @@ type convContent struct {
 }
 
 type eventWrapper struct {
-	Message  *convEventMessage `json:"message"`
-	Error    *convError        `json:"error"`
+	Message *convEventMessage `json:"message"`
+	Error   *convError        `json:"error"`
 }
 type convEventMessage struct {
-	ID             string `json:"id"`
-	ConversationID string `json:"conversation_id"`
-	ModelSlug      string `json:"model_slug"`
-	Status         string `json:"status"`
+	ID             string      `json:"id"`
+	ConversationID string      `json:"conversation_id"`
+	ModelSlug      string      `json:"model_slug"`
+	Status         string      `json:"status"`
 	EndTurn        interface{} `json:"end_turn"`
 	Content        struct {
 		Parts []json.RawMessage `json:"parts"`
@@ -121,7 +121,7 @@ type convEventMessage struct {
 			Type string `json:"type"`
 		} `json:"finish_details"`
 		Usage *struct {
-			PromptTokens   int `json:"prompt_tokens"`
+			PromptTokens     int `json:"prompt_tokens"`
 			CompletionTokens int `json:"completion_tokens"`
 		} `json:"usage"`
 	} `json:"metadata"`
@@ -200,6 +200,7 @@ type UpstreamError struct {
 	Status int
 	Body   string
 }
+
 func (e *UpstreamError) Error() string {
 	return fmt.Sprintf("upstream %d: %s", e.Status, truncate(e.Body, 300))
 }
@@ -243,18 +244,18 @@ func buildConvRequest(model string, history []ChatTurn, parentID string) convReq
 		pid = &parentID
 	}
 	return convRequest{
-		Action:           "next",
-		Messages:         msgs,
-		Model:            model,
-		TimezoneOffsetMin: 420,
+		Action:             "next",
+		Messages:           msgs,
+		Model:              model,
+		TimezoneOffsetMin:  420,
 		HistoryAndTraining: false,
-		ConversationMode: convMode{Kind: "primary_assistant"},
-		ForceParagen:     false,
-		ForceRateLimit:   false,
+		ConversationMode:   convMode{Kind: "primary_assistant"},
+		ForceParagen:       false,
+		ForceRateLimit:     false,
 		SupportedEncodings: []string{"v1"},
-		SystemHints:      []string{},
-		ConversationID:   convID,
-		ParentMessageID:  pid,
+		SystemHints:        []string{},
+		ConversationID:     convID,
+		ParentMessageID:    pid,
 	}
 }
 
