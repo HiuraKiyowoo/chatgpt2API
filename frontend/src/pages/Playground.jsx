@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { getKeys, getSystem } from "../api.js";
 import { useDocPanel, Code } from "../docpanel.jsx";
+import { getActiveKey, setActiveKey, getKeyList, maskKey } from "../keystore.js";
 
 // Header auth dibangun runtime supaya literal sensitif tidak ikut ter-redaksi.
 const AUTH_HEADER = ["Be", "ar", "er"].join("") + " ";
 
 export default function Playground() {
-  const [keys, setKeys] = useState([]);
+  const [keys, setKeys] = useState(getKeyList());
   const [models, setModels] = useState(["gpt-5"]);
   const [model, setModel] = useState("gpt-5");
   const [featWeb, setFeatWeb] = useState(false);
@@ -16,16 +17,36 @@ export default function Playground() {
   const [out, setOut] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [rawKey, setRawKey] = useState("");
+  const [rawKey, setRawKey] = useState(getActiveKey());
+  const [showKey, setShowKey] = useState(false);
   const [tab, setTab] = useState("respons");
 
   useEffect(() => {
-    getKeys().then((d) => setKeys(d.keys || [])).catch(() => {});
+    getKeys()
+      .then((d) => setKeys((d.keys || []).map((k) => ({ id: k.id, name: k.name, preview: k.keyPreview }))))
+      .catch(() => {});
     getSystem().then((d) => {
       const base = d.models || ["gpt-5"];
       setModels([...base, ...(d.modelVariants || [])]);
     }).catch(() => {});
   }, []);
+
+  // Key yang dibuat/di-pin di halaman Keys langsung ketempel di sini,
+  // dan tetap ada walau pindah menu atau reload halaman.
+  useEffect(() => {
+    const on = () => { setRawKey(getActiveKey()); setErr(""); };
+    window.addEventListener("c2api:key", on);
+    return () => window.removeEventListener("c2api:key", on);
+  }, []);
+
+  const apply = (v) => { setRawKey(v); setActiveKey(v); };
+
+  // Pemulihan manual: plaintext cuma tampil sekali di halaman Keys, jadi
+  // user boleh menempelkannya sendiri kalau lupa menyimpan.
+  const newKeyFromPrompt = () => {
+    const v = window.prompt("Tempel API key (sk-...):") || "";
+    return v.trim();
+  };
 
   const finalModel = (() => {
     let m = model;
@@ -130,12 +151,42 @@ Content-Type: application/json`}</Code>
           </div>
 
           <label className="field">
-            <span className="lab">API key</span>
-            <input
-              placeholder="sk-… (isi manual — daftar di bawah cuma preview)"
-              value={rawKey}
-              onChange={(e) => setRawKey(e.target.value)}
-            />
+            <span className="lab">
+              API key
+              {rawKey.startsWith("sk-") && (
+                <span className="badge accent mono" style={{ marginLeft: 7 }}>ketempel</span>
+              )}
+            </span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input
+                type={showKey ? "text" : "password"}
+                className="mono"
+                placeholder="sk-… (otomatis dari halaman API Keys)"
+                value={rawKey}
+                onChange={(e) => apply(e.target.value)}
+                style={{ flex: 1, fontFamily: "var(--mono)", fontSize: 12 }}
+              />
+              <button className="btn small" onClick={() => setShowKey((v) => !v)} type="button">
+                {showKey ? "Sembunyi" : "Lihat"}
+              </button>
+              {rawKey && (
+                <button className="btn small" onClick={() => apply("")} type="button">Hapus</button>
+              )}
+            </div>
+            {!rawKey && keys.length > 0 && (
+              <div className="hint" style={{ marginTop: 7 }}>
+                {keys.length} key tersimpan. Plaintext cuma tampil sekali saat dibuat —
+                pilih key di{" "}
+                <a href="/keys">API Keys</a>, atau pakai{" "}
+                <button
+                  className="btn small"
+                  type="button"
+                  onClick={() => apply(newKeyFromPrompt())}
+                >
+                  tempel manual
+                </button>.
+              </div>
+            )}
           </label>
 
           <label className="field">
@@ -174,13 +225,6 @@ Content-Type: application/json`}</Code>
           )}
         </div>
       </div>
-
-      {keys.length > 0 && (
-        <p className="hint">
-          {keys.length} key terdaftar. Plaintext cuma tampil sekali saat dibuat —
-          buat key baru di <a href="/keys">API Keys</a> kalau lupa.
-        </p>
-      )}
     </div>
   );
 }

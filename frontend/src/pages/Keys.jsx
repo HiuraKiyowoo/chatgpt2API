@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getKeys, addKey, deleteKey } from "../api.js";
 import { useDocPanel, Code } from "../docpanel.jsx";
+import { setActiveKey, getActiveKey, setKeyList, maskKey } from "../keystore.js";
 
 const AUTH_EX = `# semua request inference pakai header ini
 Authorization: Bearer sk-••••••••••••••••
@@ -9,8 +10,7 @@ Authorization: Bearer sk-••••••••••••••••
 curl http://localhost:8800/v1/models \\
   -H "Authorization: Bearer sk-••••••••••••••••"`;
 
-const KEY_SHAPE = `sk-<24 hex>
-contoh: sk-181f9c2e7b04a5d83f6e1092`;
+const KEY_SHAPE = `sk-<24 hex>`;
 
 export default function Keys() {
   const [list, setList] = useState([]);
@@ -18,9 +18,22 @@ export default function Keys() {
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [pinned, setPinned] = useState(getActiveKey());
 
-  const load = () => getKeys().then((d) => setList(d.keys)).catch((e) => setErr(e.message));
+  const load = () =>
+    getKeys()
+      .then((d) => {
+        setList(d.keys);
+        setKeyList((d.keys || []).map((k) => ({ id: k.id, name: k.name, preview: k.keyPreview })));
+      })
+      .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    const on = () => setPinned(getActiveKey());
+    window.addEventListener("c2api:key", on);
+    return () => window.removeEventListener("c2api:key", on);
+  }, []);
 
   useDocPanel("Autentikasi", [
     <div key="a">
@@ -46,6 +59,8 @@ export default function Keys() {
     try {
       const r = await addKey(name || "default");
       setNewKey(r.key);
+      setActiveKey(r.key);   // langsung ketempel ke Playground
+      setPinned(r.key);
       setName("");
       load();
     } catch (ex) { setErr(ex.message); }
@@ -55,6 +70,8 @@ export default function Keys() {
     try { await navigator.clipboard.writeText(newKey); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch {}
   };
   const del = async (id) => { await deleteKey(id); load(); };
+  const pin = (k) => { setActiveKey(k); setPinned(k); };
+  const unpin = () => { setActiveKey(""); setPinned(""); };
 
   return (
     <div className="content">
@@ -79,14 +96,27 @@ export default function Keys() {
 
         {newKey && (
           <div className="keybox">
-            <div className="hint" style={{ marginBottom: 6 }}>Key baru — salin sekarang, cuma tampil sekali</div>
+            <div className="hint" style={{ marginBottom: 6 }}>
+              Key baru — <b>sudah otomatis ketempel di Playground</b>. Salin juga buat klien luar, cuma tampil sekali ini.
+            </div>
             <code>{newKey}</code>
-            <div style={{ marginTop: 9 }}>
+            <div style={{ marginTop: 9, display: "flex", gap: 6 }}>
               <button className="btn small" onClick={copy}>{copied ? "✓ Tersalin" : "Salin"}</button>
+              <a className="btn small" href="/playground">Buka Playground →</a>
             </div>
           </div>
         )}
       </div>
+
+      {pinned && (
+        <div className="notice" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span className="badge accent mono">AKTIF</span>
+          <span style={{ flex: 1 }}>
+            Key aktif di Playground: <code>{maskKey(pinned)}</code>
+          </span>
+          <button className="btn small" onClick={unpin}>Lepas</button>
+        </div>
+      )}
 
       <div className="card flush">
         <div className="card-head">
@@ -103,12 +133,20 @@ export default function Keys() {
               <tbody>
                 {list.map((k) => (
                   <tr key={k.id}>
-                    <td className="k">{k.name || "default"}</td>
+                    <td className="k">
+                      {k.name || "default"}
+                      {k.keyPreview && pinned && pinned.startsWith(k.keyPreview.slice(0, 7)) && (
+                        <span className="badge accent mono" style={{ marginLeft: 6 }}>aktif</span>
+                      )}
+                    </td>
                     <td className="ty">{k.keyPreview}</td>
                     <td className="desc">
                       {k.createdAt ? new Date(k.createdAt * 1000).toLocaleDateString("id-ID") : "—"}
                     </td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button className="btn small" onClick={() => pin(newKey || "")} disabled={!newKey}>
+                        Pakai
+                      </button>
                       <button className="btn small danger" onClick={() => del(k.id)}>Hapus</button>
                     </td>
                   </tr>

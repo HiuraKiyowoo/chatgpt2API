@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { setPanelEmitter } from "./docpanel.jsx";
 import "./styles.css";
 
 const NAV = [
   { group: "Overview", items: [
-    { to: "/", ico: "◈", label: "Dashboard", end: true },
+    { to: "/", ico: "◆", label: "Dashboard", end: true },
   ]},
   { group: "Config", items: [
-    { to: "/accounts", ico: "◉", label: "Accounts" },
-    { to: "/keys", ico: "⌘", label: "API Keys" },
+    { to: "/accounts", ico: "●", label: "Accounts" },
+    { to: "/keys", ico: "⌗", label: "API Keys" },
   ]},
   { group: "Tools", items: [
     { to: "/playground", ico: "▶", label: "Playground" },
@@ -28,15 +29,25 @@ const linkCls = ({ isActive }) => "navlink" + (isActive ? " active" : "");
 
 export default function App() {
   const [ver, setVer] = useState("1.0.0");
-  const loc = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
   const [panel, setPanel] = useState(null);
+  const loc = useLocation();
 
-  // Panel contoh request/response di kanan: halaman bisa "mendaftarkan" isinya
-  // lewat window event, jadi tidak perlu prop-drilling ke tiap page.
+  // Panel kanan: halaman mendaftarkan isinya lewat emitter, tanpa prop-drilling.
   useEffect(() => {
-    const on = (e) => setPanel(e.detail || null);
-    window.addEventListener("docs:panel", on);
-    return () => window.removeEventListener("docs:panel", on);
+    setPanelEmitter((p) => setPanel(p));
+    return () => setPanelEmitter(null);
+  }, []);
+
+  // Drawer ditutup tiap pindah halaman, dan bisa ditutup pakai Esc.
+  useEffect(() => {
+    setNavOpen(false);
+  }, [loc.pathname]);
+
+  useEffect(() => {
+    const on = (e) => e.key === "Escape" && setNavOpen(false);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
   }, []);
 
   useEffect(() => {
@@ -54,8 +65,32 @@ export default function App() {
   const cur = CRUMB[loc.pathname] || loc.pathname.replace("/", "");
 
   return (
-    <div className={"shell" + (panel ? " with-panel" : "")}>
-      <aside>
+    <div className="shell">
+      {/* hamburger kiri atas — satu-satunya jalan ke navigasi */}
+      <header className="topbar">
+        <button
+          className={"hamburger" + (navOpen ? " on" : "")}
+          aria-label="Menu"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((v) => !v)}
+        >
+          <span /><span /><span />
+        </button>
+
+        <div className="crumbs">
+          <span className="brand-mini">chatgpt2api</span>
+          <span className="sep">/</span>
+          <span className="cur">{cur}</span>
+        </div>
+
+        <div className="right">
+          <span className="badge accent mono">OpenAI-compatible</span>
+        </div>
+      </header>
+
+      {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
+
+      <aside className={navOpen ? "open" : ""}>
         <div className="brand">
           <span className="mark">C2</span>
           chatgpt2API
@@ -90,17 +125,6 @@ export default function App() {
       </aside>
 
       <main>
-        <div className="topbar">
-          <div className="crumbs">
-            <span>chatgpt2api</span>
-            <span className="sep">/</span>
-            <span className="cur">{cur}</span>
-          </div>
-          <div className="right">
-            <span className="badge accent mono">OpenAI-compatible</span>
-          </div>
-        </div>
-
         <Outlet />
 
         <footer className="docfoot">
