@@ -109,13 +109,13 @@ func (h *Handler) AccountsList(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AccountsAdd(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Label        string `json:"label"`
-		AccessToken  string `json:"accessToken"`
-		Cookies      string `json:"cookies"`
-		CFClearance  string `json:"cfClearance"`
-		UserAgent    string `json:"userAgent"`
-		ProxyURL     string `json:"proxyUrl"`
-		CheckNow     bool   `json:"checkNow"`
+		Label       string `json:"label"`
+		AccessToken string `json:"accessToken"`
+		Cookies     string `json:"cookies"`
+		CFClearance string `json:"cfClearance"`
+		UserAgent   string `json:"userAgent"`
+		ProxyURL    string `json:"proxyUrl"`
+		CheckNow    bool   `json:"checkNow"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
 		jsonErr(w, 400, "JSON invalid")

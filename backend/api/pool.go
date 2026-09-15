@@ -27,9 +27,9 @@ type Account struct {
 
 // Pool = rotasi akun round-robin + cooldown.
 type Pool struct {
-	mu   sync.Mutex
-	rr   int
-	app  *app.Core
+	mu  sync.Mutex
+	rr  int
+	app *app.Core
 }
 
 func NewPool(c *app.Core) *Pool {

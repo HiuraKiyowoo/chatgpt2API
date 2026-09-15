@@ -128,7 +128,7 @@ func completeResp(w http.ResponseWriter, model, text, convID string, uIn, uOut i
 		"choices": []map[string]interface{}{
 			{"index": 0, "message": map[string]string{"role": "assistant", "content": text}, "finish_reason": "stop"},
 		},
-		"usage": map[string]int{"prompt_tokens": uIn, "completion_tokens": uOut, "total_tokens": uIn + uOut},
+		"usage":              map[string]int{"prompt_tokens": uIn, "completion_tokens": uOut, "total_tokens": uIn + uOut},
 		"system_fingerprint": convID,
 	})
 }

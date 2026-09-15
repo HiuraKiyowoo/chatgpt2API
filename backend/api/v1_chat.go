@@ -32,6 +32,7 @@ func (h *Handler) Models(w http.ResponseWriter, r *http.Request) {
 			map[string]interface{}{"id": m, "object": "model", "owned_by": "chatgpt2api"},
 			map[string]interface{}{"id": m + "-web", "object": "model", "owned_by": "chatgpt2api"},
 			map[string]interface{}{"id": m + "-thinking", "object": "model", "owned_by": "chatgpt2api"},
+			map[string]interface{}{"id": m + "-research", "object": "model", "owned_by": "chatgpt2api"},
 		)
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -110,7 +111,12 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slug, feat := parseChatFeatures(req.Model)
-	parts, err := h.streamAnyRoute(cred, modelSlug(slug), turns, feat)
+	var parts <-chan upstream.Part
+	if feat.Research {
+		parts, err = h.runResearch(cred, modelSlug(slug), turns, feat)
+	} else {
+		parts, err = h.streamAnyRoute(cred, modelSlug(slug), turns, feat)
+	}
 	if err != nil {
 		h.Pool.ReportUpdate(accID, false, err.Error(), cooldownFor(err))
 		h.writeUpstreamErr(w, err)
@@ -238,6 +244,12 @@ func parseChatFeatures(m string) (string, upstream.ChatFeatures) {
 		if strings.HasSuffix(base, "-thinking") {
 			f.Reasoning = "high"
 			base = strings.TrimSuffix(base, "-thinking")
+			continue
+		}
+		if strings.HasSuffix(base, "-research") {
+			f.Research = true
+			f.WebSearch = true // riset butuh browsing
+			base = strings.TrimSuffix(base, "-research")
 			continue
 		}
 		break

@@ -53,10 +53,10 @@ func (h *Handler) saveOAuthTokens(accID string, toks *upstream.OAuthTokens) erro
 // Body: {cookies: "<array JSON Cookie-Editor atau cookie-string>", label?: ""}
 //
 // Alur (jalur A):
-//   1. bikin PKCE + auth URL
-//   2. sidecar: load cookie Google -> buka authorize -> tangkap code
-//   3. tukar code -> refresh_token (HTTP murni, ~1 detik)
-//   4. simpan refresh_token ke DB; access_token di-refresh dari situ selamanya
+//  1. bikin PKCE + auth URL
+//  2. sidecar: load cookie Google -> buka authorize -> tangkap code
+//  3. tukar code -> refresh_token (HTTP murni, ~1 detik)
+//  4. simpan refresh_token ke DB; access_token di-refresh dari situ selamanya
 func (h *Handler) OAuthHarvest(w http.ResponseWriter, r *http.Request) {
 	if !h.App.Config.Solver.Enabled {
 		jsonErr(w, 400, "solver mati — set solver.enabled=true di config.yaml")

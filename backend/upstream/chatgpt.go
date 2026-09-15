@@ -232,6 +232,7 @@ func deviceID(cred Credential) string {
 type ChatFeatures struct {
 	WebSearch bool
 	Reasoning string // "low" | "medium" | "high"; "" = default upstream
+	Research  bool   // mode mini-deep-research: plan -> web per subq -> sintesis
 }
 
 func (f ChatFeatures) options() interface{} {

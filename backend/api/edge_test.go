@@ -27,8 +27,8 @@ func TestChatRejectsGarbageBody(t *testing.T) {
 	seedOAuthAccount(t, h, cfg, jwtWithExp(time.Now().Add(time.Hour).Unix()), "rt-x")
 	key := seedAPIKey(t, h)
 	cases := map[string]string{
-		"not json":        "hai",
-		"empty messages":  `{"model":"gpt-5","messages":[]}`,
+		"not json":         "hai",
+		"empty messages":   `{"model":"gpt-5","messages":[]}`,
 		"missing messages": `{"model":"gpt-5"}`,
 	}
 	for name, body := range cases {
@@ -183,8 +183,8 @@ func mockConvStream(t *testing.T, parts []string) *httptest.Server {
 		}
 		final := map[string]interface{}{"message": map[string]interface{}{
 			"id": "m2", "conversation_id": "c", "model_slug": "gpt-5",
-			"status":  "finished_successfully",
-			"content": map[string]interface{}{"parts": []string{""}},
+			"status":   "finished_successfully",
+			"content":  map[string]interface{}{"parts": []string{""}},
 			"metadata": map[string]interface{}{"finish_details": map[string]string{"type": "stop"}},
 		}}
 		b, _ := json.Marshal(final)

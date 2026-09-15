@@ -105,7 +105,7 @@ func (h *Handler) SystemInfo(w http.ResponseWriter, r *http.Request) {
 			// varian fitur (suffix) buat UI Playground/Dashboard
 			var v []string
 			for _, m := range core.ModelAliases {
-				v = append(v, m+"-web", m+"-thinking")
+				v = append(v, m+"-web", m+"-thinking", m+"-research")
 			}
 			return v
 		}(),

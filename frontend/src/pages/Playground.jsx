@@ -7,6 +7,7 @@ export default function Playground() {
   const [model, setModel] = useState("gpt-5");
   const [featWeb, setFeatWeb] = useState(false);
   const [featThink, setFeatThink] = useState(false);
+  const [featResearch, setFeatResearch] = useState(false);
   const [prompt, setPrompt] = useState("Halo, perkenalkan diri lu singkat.");
   const [out, setOut] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,6 +27,7 @@ export default function Playground() {
     // hindari dobel suffix kalau user pilih varian dari dropdown sekaligus ngecek toggle
     if (featWeb && !m.endsWith("-web")) m += "-web";
     if (featThink && !m.endsWith("-thinking")) m += "-thinking";
+    if (featResearch && !m.endsWith("-research")) m += "-research";
     return m;
   })();
 
@@ -83,6 +85,10 @@ export default function Playground() {
           <label className="chk">
             <input type="checkbox" checked={featThink} onChange={(e) => setFeatThink(e.target.checked)} />
             🧠 Thinking
+          </label>
+          <label className="chk">
+            <input type="checkbox" checked={featResearch} onChange={(e) => setFeatResearch(e.target.checked)} />
+            🕵️ Riset (multi-tahap, hemat kuota ±5 request)
           </label>
           <input placeholder="API key sk-... (isi manual, preview gak bisa dipakai)" value={rawKey} onChange={(e) => setRawKey(e.target.value)} />
           <textarea rows={4} placeholder="Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
