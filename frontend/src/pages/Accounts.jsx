@@ -120,6 +120,7 @@ export default function Accounts() {
     if (r.cookieWarn) parts.push(r.cookieWarn);
     setNotice(parts.join(" · "));
     setFilter({ detail: r.detail || [], cookies: r.cookies || "", hasSession: r.hasSession, hasDid: r.hasDid });
+    setShowAdvanced(true);
     setPaste("");
   };
 
@@ -205,16 +206,30 @@ export default function Accounts() {
 
         <details open={showAdvanced} onToggle={(e) => setShowAdvanced(e.target.open)}>
           <summary className="muted" style={{ cursor: "pointer" }}>…atau isi manual / lihat field lama</summary>
-          <form onSubmit={submit} className="form" style={{ marginTop: 8 }}>
+          <div className="form" style={{ marginTop: 8 }}>
             <input placeholder="Label (cth: akun kantor)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} />
             <input placeholder="accessToken (eyJ... — opsional, umur ±9 hari)" value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} />
             <input placeholder="Cookies string (hasil konversi di atas)" value={form.cookies} onChange={(e) => setForm({ ...form, cookies: e.target.value })} />
             <input placeholder="cf_clearance (opsional — web fallback doang)" value={form.cfClearance} onChange={(e) => setForm({ ...form, cfClearance: e.target.value })} />
             <input placeholder="User-Agent (opsional)" value={form.userAgent} onChange={(e) => setForm({ ...form, userAgent: e.target.value })} />
-            <label className="chk"><input type="checkbox" checked={form.checkNow} onChange={(e) => setForm({ ...form, checkNow: e.target.checked })} /> Cek valid langsung setelah simpan</label>
-            <button className="btn primary" disabled={busy || (!form.accessToken.trim() && !form.cookies.trim())}>{busy ? "Menyimpan..." : "Tambah"}</button>
-          </form>
+          </div>
         </details>
+
+        {/* Tombol simpan DI LUAR <details>: kalau di dalam, tombolnya ketutup
+            dan user yang udah convert gak punya cara nge-klik "Tambah". */}
+        <form onSubmit={submit} className="form" style={{ marginTop: 10 }}>
+          <label className="chk">
+            <input type="checkbox" checked={form.checkNow} onChange={(e) => setForm({ ...form, checkNow: e.target.checked })} />
+            {" "}Cek valid langsung setelah simpan
+          </label>
+          <div className="muted small">
+            Cookie siap: {form.cookies ? `${form.cookies.length} char` : "kosong"} ·{" "}
+            accessToken {form.accessToken ? "ada" : "kosong"}
+          </div>
+          <button className="btn primary" disabled={busy || (!form.accessToken.trim() && !form.cookies.trim())}>
+            {busy ? "Menyimpan..." : "➕ Tambah akun"}
+          </button>
+        </form>
       </div>
 
       <div className="card">
