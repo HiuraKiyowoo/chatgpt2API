@@ -14,14 +14,20 @@ export function parseCookieInput(raw) {
     return { accessToken: t };
   }
   let pairs = [];
+  let dropped = []; // [nama, panjang] cookie yang dibuang karena expired
   try {
     const j = JSON.parse(t);
     if (Array.isArray(j)) {
       // Cookie-Editor: skip yang expired
       const now = Date.now() / 1000;
-      pairs = j
-        .filter((c) => c && c.name && (!c.expirationDate || c.expirationDate > now))
-        .map((c) => [c.name, String(c.value)]);
+      for (const c of j) {
+        if (!c || !c.name) continue;
+        if (c.expirationDate && c.expirationDate <= now) {
+          dropped.push([c.name, String(c.value || "").length]);
+          continue;
+        }
+        pairs.push([c.name, String(c.value)]);
+      }
     } else if (j && typeof j === "object") {
       // output snippet DevTools: {accessToken, cookies} — cookies bisa string
       // "a=b; c=d" atau array JSON. Rekursi buat bagian cookies-nya.
@@ -64,7 +70,12 @@ export function parseCookieInput(raw) {
     (k) => k.startsWith("__Secure-next-auth.session-token") || k.startsWith("next-auth.session-token")
   );
   const hasDid = map.has("oai-did");
-  return { cookies: out, hasSession, hasDid };
+  // daftar buat panel "hasil filter": mana kepake, mana dibuang (expired)
+  const namaExpired = new Set(dropped.map(([k]) => k));
+  const detail = [];
+  for (const [k, v] of map) detail.push([k, v.length, true]);
+  for (const [k, n] of dropped) if (!map.has(k)) detail.push([k, n, false]);
+  return { cookies: out, hasSession, hasDid, detail: detail.sort((a, b) => a[0].localeCompare(b[0])) };
 }
 
 const SNIPPET = `(async () => {
@@ -86,6 +97,7 @@ export default function Accounts() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [paste, setPaste] = useState("");
   const [copied, setCopied] = useState(false);
+  const [filter, setFilter] = useState(null); // {detail, cookies, hasSession, hasDid}
 
   const load = () => getAccounts().then((d) => setList(d.accounts)).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
@@ -107,6 +119,7 @@ export default function Accounts() {
     }
     if (r.cookieWarn) parts.push(r.cookieWarn);
     setNotice(parts.join(" · "));
+    setFilter({ detail: r.detail || [], cookies: r.cookies || "", hasSession: r.hasSession, hasDid: r.hasDid });
     setPaste("");
   };
 
@@ -152,6 +165,44 @@ export default function Accounts() {
             value={paste} onChange={(e) => setPaste(e.target.value)} />
           <button type="button" className="btn" onClick={convert} disabled={!paste.trim()}>⚙️ Konversi & isi form</button>
         </div>
+
+        {filter && (
+          <div style={{ marginTop: 12, border: "1px solid var(--border,#333)", borderRadius: 8, padding: 10 }}>
+            <div className="muted small" style={{ marginBottom: 6 }}>
+              Hasil filter: <b>{filter.detail.filter((d) => d[2]).length}</b> cookie dipakai ·{" "}
+              <b>{filter.detail.filter((d) => !d[2]).length}</b> dibuang (expired) ·{" "}
+              session-token {filter.hasSession ? "ADA ✅" : "TIDAK ADA ⚠️"} · oai-did{" "}
+              {filter.hasDid ? "ADA ✅" : "gak ada ⚠️"}
+            </div>
+            <table className="small" style={{ width: "100%", fontSize: 12 }}>
+              <tbody>
+                {filter.detail.map(([n, len, dipakai], i) => (
+                  <tr key={i} style={{ opacity: dipakai ? 1 : 0.45 }}>
+                    <td>{dipakai ? "✅" : "🗑️"}</td>
+                    <td style={{ wordBreak: "break-all" }}>{n}</td>
+                    <td style={{ textAlign: "right" }}>{len} char</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button
+              type="button"
+              className="btn small"
+              style={{ marginTop: 8 }}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(filter.cookies);
+                  setNotice("Cookie hasil filter tersalin — tempel di mana aja.");
+                } catch {
+                  setNotice("Gagal salin — pakai tombol Konversi, isinya udah ke form.");
+                }
+              }}
+            >
+              📋 Salin cookie hasil filter (siap pakai)
+            </button>
+          </div>
+        )}
+
         <details open={showAdvanced} onToggle={(e) => setShowAdvanced(e.target.open)}>
           <summary className="muted" style={{ cursor: "pointer" }}>…atau isi manual / lihat field lama</summary>
           <form onSubmit={submit} className="form" style={{ marginTop: 8 }}>
