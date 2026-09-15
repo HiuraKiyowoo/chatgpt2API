@@ -95,14 +95,20 @@ func (h *Handler) SystemInfo(w http.ResponseWriter, r *http.Request) {
 	h.App.DB.QueryRow(`SELECT COUNT(*) FROM api_keys WHERE enabled=1`).Scan(&keyTotal)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"version":    core.Version,
-		"startedAt":  h.App.StartedAt,
-		"uptimeSec":  core.Now() - h.App.StartedAt,
-		"accounts":   map[string]int{"total": accTotal, "valid": accValid},
-		"apiKeys":    keyTotal,
-		"models":     core.ModelAliases,
-		"solver":     map[string]interface{}{"enabled": h.App.Config.Solver.Enabled, "url": h.App.Config.Solver.URL},
+		"version":   core.Version,
+		"startedAt": h.App.StartedAt,
+		"uptimeSec": core.Now() - h.App.StartedAt,
+		"accounts":  map[string]int{"total": accTotal, "valid": accValid},
+		"apiKeys":   keyTotal,
+		"models":    core.ModelAliases,
+		"modelVariants": func() []string {
+			// varian fitur (suffix) buat UI Playground/Dashboard
+			var v []string
+			for _, m := range core.ModelAliases {
+				v = append(v, m+"-web", m+"-thinking")
+			}
+			return v
+		}(),
+		"solver": map[string]interface{}{"enabled": h.App.Config.Solver.Enabled, "url": h.App.Config.Solver.URL},
 	})
 }
-
-

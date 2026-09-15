@@ -20,6 +20,15 @@ export default function Dashboard() {
       <div className="card">
         <h2>Model tersedia</h2>
         <div className="tags">{sys.models.map((m) => <span className="tag" key={m}>{m}</span>)}</div>
+        <p className="muted small">Varian fitur: <code>{(sys.modelVariants || []).slice(0, 4).join(", ")}</code> … — suffix <code>-web</code> (cari web) & <code>-thinking</code> (reasoning) bisa ditempel di semua model.</p>
+      </div>
+      <div className="card">
+        <h2>Fitur</h2>
+        <p className="muted">
+          🔍 <code>gpt-5-web</code> = web search otomatis (jawaban + sitasi dibersihin)<br/>
+          🧠 <code>gpt-5-thinking</code> = reasoning effort tinggi<br/>
+          kedua-duanya: <code>gpt-5-web-thinking</code>. Jalur upstream: aplikasi Android (lolos guard web), fallback web.
+        </p>
       </div>
       <div className="card">
         <h2>Solver (cloudflare-solver sidecar)</h2>
