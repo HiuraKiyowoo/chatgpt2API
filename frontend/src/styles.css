@@ -427,6 +427,25 @@ table.t td.k { font-family: var(--mono); color: var(--tx-hi); font-size: 12px; w
 table.t td.ty { font-family: var(--mono); color: var(--accent); font-size: 11.5px; white-space: nowrap; }
 table.t td.req { color: var(--warn); font-family: var(--mono); font-size: 11px; }
 table.t td.desc { color: var(--tx-dim); }
+table.t tr.off td { opacity: .42; }
+
+/* ---------- indikator status (pengganti emoji) ---------- */
+.chkstate { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.chkstate.ok  { color: var(--ok); }
+.chkstate.bad { color: var(--warn); }
+
+/* ---------- kotak hasil filter ---------- */
+.filterbox {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 11px;
+  background: var(--bg-1);
+}
+.filterbox table.t td { border-bottom: 1px solid var(--line); padding: 5px 8px; }
+.filterbox table.t td:first-child { padding-left: 0; }
+
+.faint { color: var(--tx-faint); }
 
 /* ---------- baris daftar ---------- */
 .row {
@@ -436,11 +455,15 @@ table.t td.desc { color: var(--tx-dim); }
   gap: 12px;
   padding: 11px 0;
   border-top: 1px solid var(--line);
+  flex-wrap: wrap;
 }
 .row:first-of-type { border-top: none; }
+.row > div:first-child { min-width: 0; flex: 1 1 220px; }
+.row b { overflow-wrap: anywhere; }
 .row.log { justify-content: flex-start; font-size: 12.5px; align-items: flex-start; }
 .row .title { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .actions { display: flex; gap: 5px; flex-shrink: 0; }
+.muted { overflow-wrap: anywhere; }
 
 /* ---------- code block: border 1px, tanpa shadow ---------- */
 .code, pre.code {
@@ -625,12 +648,60 @@ footer.docfoot a { color: var(--tx-dim); }
 ::-webkit-scrollbar-thumb:hover { background: #3A434C; }
 
 /* ---------- responsive ---------- */
+/* Tablet / laptop kecil: panel contoh kode disembunyikan dulu. */
 @media (max-width: 1180px) {
   .shell.with-panel { grid-template-columns: minmax(0, 1fr); }
   .panel { display: none; }
 }
+
+/* Android / HP: satu kolom, kontrol jadi besar & bisa disentuh. */
 @media (max-width: 760px) {
-  .content { padding: 18px 14px 48px; }
-  .topbar { padding: 0 14px; }
+  .content { padding: 16px 14px 56px; }
+  .topbar { padding: 0 12px; gap: 10px; }
+  .crumbs .brand-mini { display: none; }
+  .topbar .right .badge { font-size: 10px; padding: 2px 5px; }
   aside { width: 86vw; max-width: 300px; }
+
+  h1 { font-size: 20px; }
+  .lede { font-size: 13px; margin-bottom: 16px; }
+  .card { padding: 13px; }
+  .card-head { padding: 11px 13px; }
+
+  /* tombol & input minimal 40px — jangan sampai salah pencet */
+  .btn { min-height: 38px; padding: 0 12px; }
+  .btn.small { min-height: 34px; padding: 0 10px; }
+  input, select, textarea { min-height: 40px; font-size: 15px; }
+  textarea { min-height: 90px; }
+
+  .form.inline { flex-direction: column; align-items: stretch; }
+  .form.inline .btn { width: 100%; }
+
+  /* tabel: izinkan gulir mendatar alih-alih memaksa kolom sempit */
+  .card-body, .filterbox { overflow-x: auto; }
+  .filterbox table.t { min-width: 0; }
+  table.t td, table.t th { padding: 7px 8px; }
+
+  /* baris akun/log: tombol turun ke bawah, full-width */
+  .row { padding: 12px 0; gap: 9px; }
+  .row > div:first-child { flex: 1 1 100%; }
+  .actions { width: 100%; }
+  .actions .btn { flex: 1; }
+
+  .panel-head { padding: 10px 12px; }
+  .code, pre.code { font-size: 11.5px; padding: 10px 11px; }
+  .docfoot { padding: 14px; flex-wrap: wrap; gap: 6px; }
+}
+
+/* HP kecil: rapatkan lagi. */
+@media (max-width: 400px) {
+  .content { padding: 13px 10px 48px; }
+  .topbar { padding: 0 9px; }
+  h1 { font-size: 18px; }
+  .card { padding: 11px; }
+  .badge { font-size: 10px; }
+}
+
+/* Layar lebar (desktop): batasi lebar teks biar tidak melebar tanpa guna. */
+@media (min-width: 1500px) {
+  .content { max-width: 1100px; }
 }

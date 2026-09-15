@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getAccounts, addAccount, deleteAccount, checkAccount } from "../api.js";
 import { useDocPanel, Code } from "../docpanel.jsx";
+import { IconCheck, IconCross, IconWarn, IconTrash, IconCopy, IconMail, IconTool, IconGear } from "../icons.jsx";
 
 // ---- helper konversi input mentah -> cookie string siap pakai ----
 // Menerima 3 format:
@@ -115,7 +116,7 @@ export default function Accounts() {
     if (r.cookies) {
       setForm((f) => ({ ...f, cookies: r.cookies }));
       parts.push(
-        `Cookies ${r.cookies.length} char — session-token ${r.hasSession ? "ADA ✅" : "TIDAK KEPIKET ⚠️ (HttpOnly: pakai export Cookie-Editor)"} · oai-did ${r.hasDid ? "ADA ✅" : "(gak ada, device-id random)"}`
+        `Cookies ${r.cookies.length} char — session-token ${r.hasSession ? "ADA" : "TIDAK KEPIKET (HttpOnly: pakai export Cookie-Editor)"} · oai-did ${r.hasDid ? "ADA" : "tidak ada (device-id random)"}`
       );
     }
     if (r.cookieWarn) parts.push(r.cookieWarn);
@@ -198,24 +199,42 @@ oai-did=…`}</Code>
         <div className="form">
           <textarea rows={4} placeholder={'Tempel DISINI apa saja: JSON export Cookie-Editor, string "a=b; c=d", atau accessToken JWT doang'}
             value={paste} onChange={(e) => setPaste(e.target.value)} />
-          <button type="button" className="btn" onClick={convert} disabled={!paste.trim()}>⚙️ Konversi & isi form</button>
+          <button type="button" className="btn" onClick={convert} disabled={!paste.trim()}>
+            <IconGear /> Konversi &amp; isi form
+          </button>
         </div>
 
         {filter && (
-          <div style={{ marginTop: 12, border: "1px solid var(--border,#333)", borderRadius: 8, padding: 10 }}>
+          <div className="filterbox">
             <div className="muted small" style={{ marginBottom: 6 }}>
               Hasil filter: <b>{filter.detail.filter((d) => d[2]).length}</b> cookie dipakai ·{" "}
               <b>{filter.detail.filter((d) => !d[2]).length}</b> dibuang (expired) ·{" "}
-              session-token {filter.hasSession ? "ADA ✅" : "TIDAK ADA ⚠️"} · oai-did{" "}
-              {filter.hasDid ? "ADA ✅" : "gak ada ⚠️"}
+              session-token{" "}
+              {filter.hasSession ? (
+                <span className="chkstate ok"><IconCheck /> ADA</span>
+              ) : (
+                <span className="chkstate bad"><IconWarn /> TIDAK ADA</span>
+              )}{" "}
+              · oai-did{" "}
+              {filter.hasDid ? (
+                <span className="chkstate ok"><IconCheck /> ADA</span>
+              ) : (
+                <span className="chkstate bad"><IconWarn /> tidak ada</span>
+              )}
             </div>
-            <table className="small" style={{ width: "100%", fontSize: 12 }}>
+            <table className="t">
               <tbody>
                 {filter.detail.map(([n, len, dipakai], i) => (
-                  <tr key={i} style={{ opacity: dipakai ? 1 : 0.45 }}>
-                    <td>{dipakai ? "✅" : "🗑️"}</td>
-                    <td style={{ wordBreak: "break-all" }}>{n}</td>
-                    <td style={{ textAlign: "right" }}>{len} char</td>
+                  <tr key={i} className={dipakai ? "" : "off"}>
+                    <td className="k" style={{ width: 22 }}>
+                      {dipakai ? (
+                        <span className="chkstate ok" title="dipakai"><IconCheck /></span>
+                      ) : (
+                        <span className="chkstate bad" title="dibuang"><IconTrash /></span>
+                      )}
+                    </td>
+                    <td className="desc" style={{ wordBreak: "break-all" }}>{n}</td>
+                    <td className="ty" style={{ textAlign: "right", whiteSpace: "nowrap" }}>{len} char</td>
                   </tr>
                 ))}
               </tbody>
@@ -233,7 +252,7 @@ oai-did=…`}</Code>
                 }
               }}
             >
-              📋 Salin cookie hasil filter (siap pakai)
+              <IconCopy /> Salin cookie hasil filter (siap pakai)
             </button>
           </div>
         )}
@@ -261,13 +280,13 @@ oai-did=…`}</Code>
             accessToken {form.accessToken ? "ada" : "kosong"}
           </div>
           <button className="btn primary" disabled={busy || (!form.accessToken.trim() && !form.cookies.trim())}>
-            {busy ? "Menyimpan..." : "➕ Tambah akun"}
+            {busy ? "Menyimpan..." : "+ Tambah akun"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2>🛠️ Snippet DevTools (alternatif tanpa extension)</h2>
+        <h2><IconTool /> Snippet DevTools (alternatif tanpa extension)</h2>
         <p className="muted">
           F12 → tab <b>Console</b> di halaman chatgpt.com yang udah login → paste → Enter.
           Hasil ke-clipboard. <b>Catatan:</b> cookie login (<code>session-token</code>) itu HttpOnly —
@@ -275,7 +294,9 @@ oai-did=…`}</Code>
           seed ulang). Mau yang 90 hari tanpa aksi → pakai Cookie-Editor.
         </p>
         <pre className="code" style={{ whiteSpace: "pre-wrap" }}>{SNIPPET}</pre>
-        <button className="btn" onClick={copySnippet}>{copied ? "✅ Tersalin" : "Salin snippet"}</button>
+        <button className="btn" onClick={copySnippet}>
+          {copied ? <><IconCheck /> Tersalin</> : "Salin snippet"}
+        </button>
       </div>
 
       <div className="card">
@@ -286,7 +307,11 @@ oai-did=…`}</Code>
             <div>
               <b>{a.label || "(tanpa label)"}</b> <span className={`badge ${a.status}`}>{a.status}</span>
               <div className="muted small">{a.requestCount} req · {a.successCount} ok · {a.errorCount} err{a.lastError ? ` · ${a.lastError.slice(0, 80)}` : ""}</div>
-              {a.email && <div className="muted small">✉️ {a.email} (terbaca otomatis dari token)</div>}
+              {a.email && (
+                <div className="muted small">
+                  <IconMail /> {a.email} <span className="faint">(terbaca otomatis dari token)</span>
+                </div>
+              )}
             </div>
             <div className="actions">
               <button className="btn small" onClick={() => check(a.id)}>Cek</button>

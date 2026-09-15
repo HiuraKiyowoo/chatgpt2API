@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getKeys, addKey, deleteKey } from "../api.js";
 import { useDocPanel, Code } from "../docpanel.jsx";
+import { IconCheck } from "../icons.jsx";
 import { setActiveKey, getActiveKey, setKeyList, maskKey } from "../keystore.js";
 
 const AUTH_EX = `# semua request inference pakai header ini
@@ -101,7 +102,9 @@ export default function Keys() {
             </div>
             <code>{newKey}</code>
             <div style={{ marginTop: 9, display: "flex", gap: 6 }}>
-              <button className="btn small" onClick={copy}>{copied ? "✓ Tersalin" : "Salin"}</button>
+              <button className="btn small" onClick={copy}>
+                {copied ? <><IconCheck /> Tersalin</> : "Salin"}
+              </button>
               <a className="btn small" href="/playground">Buka Playground →</a>
             </div>
           </div>

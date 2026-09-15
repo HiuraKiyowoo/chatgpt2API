@@ -1,19 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { setPanelEmitter } from "./docpanel.jsx";
+import { IconDash, IconBox, IconKey, IconPlay, IconList, IconExit, IconCross } from "./icons.jsx";
 import "./styles.css";
 
 const NAV = [
   { group: "Overview", items: [
-    { to: "/", ico: "◆", label: "Dashboard", end: true },
+    { to: "/", ico: <IconDash />, label: "Dashboard", end: true },
   ]},
   { group: "Config", items: [
-    { to: "/accounts", ico: "●", label: "Accounts" },
-    { to: "/keys", ico: "⌗", label: "API Keys" },
+    { to: "/accounts", ico: <IconBox />, label: "Accounts" },
+    { to: "/keys", ico: <IconKey />, label: "API Keys" },
   ]},
   { group: "Tools", items: [
-    { to: "/playground", ico: "▶", label: "Playground" },
-    { to: "/logs", ico: "≡", label: "Logs" },
+    { to: "/playground", ico: <IconPlay />, label: "Playground" },
+    { to: "/logs", ico: <IconList />, label: "Logs" },
   ]},
 ];
 
@@ -119,7 +120,7 @@ export default function App() {
               location.href = "/login";
             }}
           >
-            ↪ Keluar
+            <IconExit /> Keluar
           </button>
         </div>
       </aside>
@@ -143,7 +144,9 @@ export default function App() {
           <div className="panel-head">
             <span className="t">{panel.title || "Referensi"}</span>
             <span className="right" />
-            <button className="btn small" onClick={() => setPanel(null)} title="Tutup panel">✕</button>
+            <button className="btn small" onClick={() => setPanel(null)} title="Tutup panel">
+              <IconCross />
+            </button>
           </div>
           {panel.sections.map((s, i) => (
             <div className="panel-sec" key={i}>{s}</div>
