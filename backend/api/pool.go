@@ -17,6 +17,7 @@ type Account struct {
 	Preview       string `json:"preview"`
 	ProxyURL      string `json:"proxyUrl,omitempty"`
 	LastError     string `json:"lastError,omitempty"`
+	Email         string `json:"email,omitempty"`
 	CooldownUntil int64  `json:"cooldownUntil,omitempty"`
 	RequestCount  int64  `json:"requestCount"`
 	SuccessCount  int64  `json:"successCount"`

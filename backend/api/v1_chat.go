@@ -87,6 +87,9 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 			toks, errR := upstream.RefreshTokens(refreshTok)
 			if errR == nil && toks.AccessToken != "" {
 				cred.AccessToken = toks.AccessToken
+				if em := upstream.JWTEmailFromToken(toks.AccessToken); em != "" {
+					h.App.DB.Exec(`UPDATE accounts SET email = COALESCE(NULLIF(email,''), ?) WHERE id = ?`, em, accID)
+				}
 				// refresh_token hasil rotasi WAJIB ikut disimpan; kalau dibuang,
 				// yang di DB jadi basi dan akun mati permanen.
 				if errSave := h.saveOAuthTokens(accID, toks); errSave != nil {
@@ -104,6 +107,9 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 			// fallback: tukar cookie session jadi JWT
 			if fresh, errRefresh := upstream.RefreshAccessToken(h.App.Upstream.HTTP, cred); errRefresh == nil && fresh != "" {
 				cred.AccessToken = fresh
+				if em := upstream.JWTEmailFromToken(fresh); em != "" {
+					h.App.DB.Exec(`UPDATE accounts SET email = COALESCE(NULLIF(email,''), ?) WHERE id = ?`, em, accID)
+				}
 				tokEnc, _ := core.EncryptCredential(key, fresh)
 				h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ?, updated_at = ? WHERE id = ?`, tokEnc, core.Now(), accID)
 			}

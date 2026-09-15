@@ -5,9 +5,9 @@ import "testing"
 func TestEntityScrubber(t *testing.T) {
 	E0, E1, E2 := "\ue200", "\ue201", "\ue202"
 	cases := []struct {
-		name  string
+		name   string
 		deltas []string
-		want  string
+		want   string
 	}{
 		{"polos", []string{"halo ", "dunia"}, "halo dunia"},
 		{"sitasi utuh 1 delta", []string{"harga 6300" + E0 + "cite" + E2 + "turn0news0" + E1 + " hari ini"}, "harga 6300 hari ini"},

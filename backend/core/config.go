@@ -29,7 +29,7 @@ type Config struct {
 		Path string `yaml:"path"`
 	} `yaml:"database"`
 	Security struct {
-		JWTSecret             string `yaml:"jwtSecret"`
+		JWTSecret               string `yaml:"jwtSecret"`
 		CredentialEncryptionKey string `yaml:"credentialEncryptionKey"`
 	} `yaml:"security"`
 	Admin struct {

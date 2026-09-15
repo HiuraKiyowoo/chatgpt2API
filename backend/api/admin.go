@@ -86,7 +86,8 @@ func (h *Handler) AuthAPIKey(next http.HandlerFunc) http.HandlerFunc {
 
 func (h *Handler) AccountsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.App.DB.Query(`SELECT id, label, credential_type, status, proxy_url, last_error,
-		cooldown_until, request_count, success_count, error_count, last_used_at, created_at FROM accounts ORDER BY created_at ASC`)
+		cooldown_until, request_count, success_count, error_count, last_used_at, created_at,
+		COALESCE(email,'') FROM accounts ORDER BY created_at ASC`)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
@@ -97,7 +98,7 @@ func (h *Handler) AccountsList(w http.ResponseWriter, r *http.Request) {
 		var a Account
 		var credType string
 		if err := rows.Scan(&a.ID, &a.Label, &credType, &a.Status, &a.ProxyURL, &a.LastError,
-			&a.CooldownUntil, &a.RequestCount, &a.SuccessCount, &a.ErrorCount, &a.LastUsedAt, &a.CreatedAt); err != nil {
+			&a.CooldownUntil, &a.RequestCount, &a.SuccessCount, &a.ErrorCount, &a.LastUsedAt, &a.CreatedAt, &a.Email); err != nil {
 			continue
 		}
 		a.CredType = credType
@@ -150,6 +151,20 @@ func (h *Handler) AccountsAdd(w http.ResponseWriter, r *http.Request) {
 		id, req.Label, ctype, tokEnc, tokEnc, ckEnc, req.CFClearance, req.UserAgent, "unknown", req.ProxyURL, now, now); err != nil {
 		jsonErr(w, 500, err.Error())
 		return
+	}
+	// auto-detect email dari JWT (NextAuth nyimpen klaim profile.email di accessToken).
+	// Cookie-only: coba tukar cookie -> JWT dulu (best-effort, gagal = diurus pas chat pertama).
+	if em := upstream.JWTEmailFromToken(req.AccessToken); em != "" {
+		h.App.DB.Exec(`UPDATE accounts SET email = ? WHERE id = ?`, em, id)
+	} else if req.Cookies != "" {
+		if fresh, errF := upstream.RefreshAccessToken(h.App.Upstream.HTTP, upstream.Credential{
+			Cookies: req.Cookies, UserAgent: req.UserAgent, CFClearance: req.CFClearance}); errF == nil && fresh != "" {
+			if em := upstream.JWTEmailFromToken(fresh); em != "" {
+				h.App.DB.Exec(`UPDATE accounts SET email = ? WHERE id = ?`, em, id)
+			}
+			tokEnc2, _ := core.EncryptCredential(key, fresh)
+			h.App.DB.Exec(`UPDATE accounts SET access_token_enc = ? WHERE id = ?`, tokEnc2, id)
+		}
 	}
 	h.App.Logs.Add("info", "admin", "akun ditambahkan: "+req.Label, id)
 

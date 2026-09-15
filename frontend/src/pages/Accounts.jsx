@@ -175,6 +175,7 @@ export default function Accounts() {
             <div>
               <b>{a.label || "(tanpa label)"}</b> <span className={`badge ${a.status}`}>{a.status}</span>
               <div className="muted small">{a.requestCount} req · {a.successCount} ok · {a.errorCount} err{a.lastError ? ` · ${a.lastError.slice(0, 80)}` : ""}</div>
+              {a.email && <div className="muted small">✉️ {a.email} (terbaca otomatis dari token)</div>}
             </div>
             <div className="actions">
               <button className="btn small" onClick={() => check(a.id)}>Cek</button>

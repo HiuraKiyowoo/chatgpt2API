@@ -12,6 +12,7 @@ import (
 	"chatgpt2api-go/api"
 	"chatgpt2api-go/app"
 	"chatgpt2api-go/core"
+	"chatgpt2api-go/upstream"
 )
 
 func main() {
@@ -37,6 +38,30 @@ func main() {
 		os.Exit(1)
 	}
 	a := app.New(cfg, db)
+	// backfill email akun lama: dekrip JWT yang ke-simpan, baca klaim email.
+	// PENTING: pool cuma 1 koneksi — baca semua row & close rows SEBELUM Exec,
+	// kalau tidak deadlock (rows pegang koneksi, Exec nunggu selamanya).
+	key := cfg.Security.CredentialEncryptionKey
+	if key != "" {
+		type accTok struct{ id, tok string }
+		var todo []accTok
+		if rows, errQ := db.Query(`SELECT id, access_token_enc FROM accounts WHERE email = ''`); errQ == nil {
+			for rows.Next() {
+				var id, tokEnc string
+				if rows.Scan(&id, &tokEnc) == nil && tokEnc != "" {
+					if tok, errD := core.DecryptCredential(key, tokEnc); errD == nil {
+						todo = append(todo, accTok{id, tok})
+					}
+				}
+			}
+			rows.Close()
+		}
+		for _, t := range todo {
+			if em := upstream.JWTEmailFromToken(t.tok); em != "" {
+				db.Exec(`UPDATE accounts SET email = ? WHERE id = ?`, em, t.id)
+			}
+		}
+	}
 	h := api.NewHandler(a)
 
 	mux := http.NewServeMux()

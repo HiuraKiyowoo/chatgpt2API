@@ -46,6 +46,7 @@ func (d *DB) migrate() error {
 			status TEXT NOT NULL DEFAULT 'invalid',
 			proxy_url TEXT NOT NULL DEFAULT '',
 			last_error TEXT NOT NULL DEFAULT '',
+			email TEXT NOT NULL DEFAULT '',
 			cooldown_until INTEGER NOT NULL DEFAULT 0,
 			in_flight INTEGER NOT NULL DEFAULT 0,
 			request_count INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +90,11 @@ func (d *DB) migrate() error {
 		if _, err := d.Exec(s); err != nil {
 			return fmt.Errorf("migrate: %w", err)
 		}
+	}
+	// kolom email ditunda di DB lama: ALTER idempotent (error 'duplicate column' diabaikan)
+	if _, err := d.Exec(`ALTER TABLE accounts ADD COLUMN email TEXT NOT NULL DEFAULT ''`); err != nil &&
+		!strings.Contains(err.Error(), "duplicate column") {
+		return fmt.Errorf("migrate email: %w", err)
 	}
 	return nil
 }

@@ -111,3 +111,30 @@ func TokenExpiredAtauHampir(token string, now int64) bool {
 }
 
 var _ = time.Now
+
+// JWTEmailFromToken baca klaim email (https://api.openai.com/profile.email)
+// dari accessToken NextAuth ChatGPT. "" kalau gak ada/gagal.
+func JWTEmailFromToken(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var p struct {
+		Email   string `json:"email"`
+		Profile struct {
+			Email string `json:"email"`
+			Name  string `json:"name"`
+		} `json:"https://api.openai.com/profile"`
+	}
+	if json.Unmarshal(raw, &p) != nil {
+		return ""
+	}
+	if p.Profile.Email != "" {
+		return p.Profile.Email
+	}
+	return p.Email
+}
