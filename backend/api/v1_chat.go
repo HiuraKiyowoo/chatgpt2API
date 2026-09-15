@@ -188,8 +188,11 @@ func (h *Handler) writeUpstreamErr(w http.ResponseWriter, err error) {
 
 func mapStatus(s int) int {
 	switch {
-	case s == 401 || s == 403:
-		return 401 // kredensial invalid
+	case s == 401:
+		return 401 // kredensial invalid beneran
+	case s == 403:
+		// 403 = WAF/challenge ber-HTML, BUKAN salah kredensial -> jangan 401
+		return 503
 	case s == 429:
 		return 429
 	default:
@@ -203,7 +206,12 @@ func cooldownFor(err error) int64 {
 		if ue.Status == 429 {
 			return 300
 		}
-		if ue.Status == 401 || ue.Status == 403 {
+		if ue.Status == 403 {
+			// WAF/Cloudflare challenge: cooldown sebentar, JANGAN invalid permanen.
+			// Terbukti: 1x 403 HTML di jalur web bikin akun valid ditandai mati.
+			return 180
+		}
+		if ue.Status == 401 {
 			return 0
 		}
 		return 60
