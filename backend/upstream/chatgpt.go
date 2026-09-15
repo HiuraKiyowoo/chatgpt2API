@@ -360,8 +360,14 @@ func (c *Client) HealthCheck(cred Credential) (bool, string, error) {
 	if ua == "" {
 		ua = defaultUA
 	}
-	req.Header.Set("User-Agent", ua)
 	req.Header.Set("Authorization", "Bearer "+cred.AccessToken)
+	// /backend-api/models disaring CF per-identitas-klien: UA web -> 403 HTML
+	// (bukan sinyal kredensial). Pakai identitas aplikasi ChatGPT android —
+	// sama seperti jalur chat/refresh yang udah terbukti 200.
+	_ = ua
+	req.Header.Set("User-Agent", "ChatGPT/1.2026.181 (Android 16; Neo/1.0; build 2222222)")
+	req.Header.Set("OAI-Package-Name", "com.openai.chatgpt")
+	req.Header.Set("OAI-Client-Type", "android")
 	if cred.Cookies != "" || cred.CFClearance != "" {
 		cookies := cred.Cookies
 		if cred.CFClearance != "" {

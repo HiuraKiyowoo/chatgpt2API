@@ -57,35 +57,66 @@ func JWTExp(token string) int64 {
 func sessionURL() string { return ChatBase() + "/api/auth/session" }
 
 // RefreshAccessToken tukar cookie session jadi accessToken JWT baru.
-// Return (tokenBaru, pesanError). Kalau gagal, token lama tetap dipakai caller.
-func RefreshAccessToken(httpCli *http.Client, cred Credential) (string, error) {
+// Return (tokenBaru, cookieSessionTerupdate, err). PENTING: NextAuth MEMUTAR
+// __Secure-next-auth.session-token di Set-Cookie setiap kali /api/auth/session
+// dipanggil. Caller WAJIB menyimpan return ke-2 — memakai cookie lama terus
+// = sidik jari 'session curian' (terbukti: token pool di-revoke server setelah
+// beberapa panggilan dengan cookie basi). Kalau gagal, token lama tetap dipakai.
+func RefreshAccessToken(httpCli *http.Client, cred Credential) (string, string, error) {
 	if strings.TrimSpace(cred.Cookies) == "" {
-		return "", fmt.Errorf("tidak ada cookie session buat refresh")
+		return "", "", fmt.Errorf("tidak ada cookie session buat refresh")
 	}
-	req, err := http.NewRequest("GET", sessionURL(), nil)
-	if err != nil {
-		return "", err
-	}
-	ua := cred.UserAgent
-	if ua == "" {
-		ua = defaultUA
-	}
-	req.Header.Set("User-Agent", ua)
-	req.Header.Set("Accept", "application/json")
 	cookies := cred.Cookies
 	if cred.CFClearance != "" {
 		cookies = strings.TrimSpace(cookies + "; cf_clearance=" + cred.CFClearance)
+	}
+	// Cloudflare menyaring /api/auth/session berdasar identitas klien:
+	// UA web (Chrome) -> 403 HTML challenge, UA aplikasi ChatGPT -> 200 + accessToken.
+	// Terbukti 2026-09: 200 untuk 'ChatGPT/1.2026.181 (Android 16; ...)' maupun
+	// UA Android seluler biasa. Coba kandidat berurutan; berhenti saat dapat token.
+	uaWeb := cred.UserAgent
+	if uaWeb == "" {
+		uaWeb = defaultUA
+	}
+	cands := []struct {
+		ua    string
+		phone bool
+	}{
+		{"ChatGPT/1.2026.181 (Android 16; Neo/1.0; build 2222222)", true},
+		{uaWeb, false},
+	}
+	var lastErr error
+	for _, c := range cands {
+		tok, rot, err := refreshOnce(httpCli, cookies, c.ua, c.phone)
+		if err == nil {
+			return tok, rot, nil
+		}
+		lastErr = err
+	}
+	return "", "", lastErr
+}
+
+func refreshOnce(httpCli *http.Client, cookies, ua string, androidIdent bool) (string, string, error) {
+	req, err := http.NewRequest("GET", sessionURL(), nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("User-Agent", ua)
+	req.Header.Set("Accept", "application/json")
+	if androidIdent {
+		req.Header.Set("OAI-Package-Name", "com.openai.chatgpt")
+		req.Header.Set("OAI-Client-Type", "android")
 	}
 	req.Header.Set("Cookie", cookies)
 
 	resp, err := httpCli.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("refresh: HTTP %d: %s", resp.StatusCode, truncate(string(b), 200))
+		return "", "", fmt.Errorf("refresh: HTTP %d: %s", resp.StatusCode, truncate(string(b), 200))
 	}
 	var out struct {
 		AccessToken string `json:"accessToken"`
@@ -93,12 +124,46 @@ func RefreshAccessToken(httpCli *http.Client, cred Credential) (string, error) {
 		Error       string `json:"error"`
 	}
 	if err := json.Unmarshal(b, &out); err != nil {
-		return "", fmt.Errorf("refresh: parse JSON: %w", err)
+		return "", "", fmt.Errorf("refresh: parse JSON: %w", err)
 	}
 	if out.Error != "" || out.AccessToken == "" {
-		return "", fmt.Errorf("refresh: sesi mati (%s)", out.Error)
+		return "", "", fmt.Errorf("refresh: sesi mati (%s)", out.Error)
 	}
-	return out.AccessToken, nil
+	return out.AccessToken, mergeRotatedSession(cookies, resp.Cookies()), nil
+}
+
+// mergeRotatedSession ganti semua pasangan *session-token* di string cookie lama
+// dengan versi rotasi dari Set-Cookie response (chunk .0/.1 disimpan apa adanya —
+// server cuma ngenalin bentuk chunk terpisah). Cookie non-session tidak disentuh.
+func mergeRotatedSession(old string, sc []*http.Cookie) string {
+	var rot []*http.Cookie
+	for _, c := range sc {
+		if strings.Contains(c.Name, "session-token") && c.Value != "" && !c.Expires.Before(time.Now().Add(-time.Hour)) {
+			rot = append(rot, c)
+		}
+	}
+	if len(rot) == 0 {
+		return ""
+	}
+	kept := []string{}
+	for _, kv := range strings.Split(old, ";") {
+		kv = strings.TrimSpace(kv)
+		if kv == "" {
+			continue
+		}
+		name := kv
+		if i := strings.Index(kv, "="); i > 0 {
+			name = kv[:i]
+		}
+		if strings.Contains(name, "session-token") {
+			continue
+		}
+		kept = append(kept, kv)
+	}
+	for _, c := range rot {
+		kept = append(kept, c.Name+"="+c.Value)
+	}
+	return strings.Join(kept, "; ")
 }
 
 // TokenExpiredAtauHampir: true kalau exp < now + margin (60 detik) atau gak terbaca.

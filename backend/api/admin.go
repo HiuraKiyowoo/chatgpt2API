@@ -157,8 +157,12 @@ func (h *Handler) AccountsAdd(w http.ResponseWriter, r *http.Request) {
 	if em := upstream.JWTEmailFromToken(req.AccessToken); em != "" {
 		h.App.DB.Exec(`UPDATE accounts SET email = ? WHERE id = ?`, em, id)
 	} else if req.Cookies != "" {
-		if fresh, errF := upstream.RefreshAccessToken(h.App.Upstream.HTTP, upstream.Credential{
+		if fresh, rot, errF := upstream.RefreshAccessToken(h.App.Upstream.HTTP, upstream.Credential{
 			Cookies: req.Cookies, UserAgent: req.UserAgent, CFClearance: req.CFClearance}); errF == nil && fresh != "" {
+			if rot != "" {
+				rotEnc, _ := core.EncryptCredential(key, rot)
+				h.App.DB.Exec(`UPDATE accounts SET cookies_enc = ? WHERE id = ?`, rotEnc, id)
+			}
 			if em := upstream.JWTEmailFromToken(fresh); em != "" {
 				h.App.DB.Exec(`UPDATE accounts SET email = ? WHERE id = ?`, em, id)
 			}
@@ -176,6 +180,12 @@ func (h *Handler) AccountsAdd(w http.ResponseWriter, r *http.Request) {
 		})
 		if ok {
 			status = "valid"
+			h.App.DB.Exec(`UPDATE accounts SET status='valid' WHERE id=?`, id)
+		} else if strings.Contains(msg, "HTTP 403") {
+			// 403 HTML = challenge WAF di jalur web, BUKAN bukti kredensial mati.
+			// Biarkan 'unknown': chat pertama lewat jalur android yang memutuskan.
+			status = "unknown"
+			detail = "web challenge (403) — akan terbukti saat chat pertama (jalur android)"
 		} else {
 			status = "invalid"
 			detail = msg

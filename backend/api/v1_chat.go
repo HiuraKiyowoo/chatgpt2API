@@ -104,9 +104,16 @@ func (h *Handler) V1Chat(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if cred.Cookies != "" {
-			// fallback: tukar cookie session jadi JWT
-			if fresh, errRefresh := upstream.RefreshAccessToken(h.App.Upstream.HTTP, cred); errRefresh == nil && fresh != "" {
+			// fallback: tukar cookie session jadi JWT. Simpan ROTASI cookie balik
+			// (NextAuth mutar session-token tiap panggilan; pakai yang basi =
+			// sidik jari maling, server revoke JWT-nya).
+			if fresh, rot, errRefresh := upstream.RefreshAccessToken(h.App.Upstream.HTTP, cred); errRefresh == nil && fresh != "" {
 				cred.AccessToken = fresh
+				if rot != "" && rot != cred.Cookies {
+					cred.Cookies = rot
+					rotEnc, _ := core.EncryptCredential(key, rot)
+					h.App.DB.Exec(`UPDATE accounts SET cookies_enc = ?, updated_at = ? WHERE id = ?`, rotEnc, core.Now(), accID)
+				}
 				if em := upstream.JWTEmailFromToken(fresh); em != "" {
 					h.App.DB.Exec(`UPDATE accounts SET email = COALESCE(NULLIF(email,''), ?) WHERE id = ?`, em, accID)
 				}

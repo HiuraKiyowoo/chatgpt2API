@@ -22,6 +22,26 @@ export function parseCookieInput(raw) {
       pairs = j
         .filter((c) => c && c.name && (!c.expirationDate || c.expirationDate > now))
         .map((c) => [c.name, String(c.value)]);
+    } else if (j && typeof j === "object") {
+      // output snippet DevTools: {accessToken, cookies} — cookies bisa string
+      // "a=b; c=d" atau array JSON. Rekursi buat bagian cookies-nya.
+      const out = {};
+      const at = j.accessToken || j.access_token || j.token;
+      if (typeof at === "string" && at.trim()) out.accessToken = at.trim();
+      if (j.cookies) {
+        const sub = parseCookieInput(
+          typeof j.cookies === "string" ? j.cookies : JSON.stringify(j.cookies)
+        );
+        if (sub.cookies) {
+          out.cookies = sub.cookies;
+          out.hasSession = sub.hasSession;
+          out.hasDid = sub.hasDid;
+        } else if (sub.error) {
+          out.cookieWarn = sub.error + " (bagian cookies dilewati)";
+        }
+      }
+      if (!out.accessToken && !out.cookies) return { error: "Objek tidak punya accessToken/cookies" };
+      return out;
     }
   } catch {
     // format 2: "a=b; c=d"
@@ -35,26 +55,14 @@ export function parseCookieInput(raw) {
       });
   }
   if (!pairs.length) return { error: "Format tidak dikenali" };
-  // gabung chunk NextAuth: name.0 + name.1 (urutan penting)
+  // PENTING: chunk NextAuth (.0/.1) TIDAK BOLEH digabung — server cuma ngenalin
+  // bentuk chunk terpisah (terbukti: gabungan -> 403 WAF, chunk -> 200 + JWT).
   const map = new Map();
-  const chunks = new Map();
-  for (const [k, v] of pairs) {
-    const m = k.match(/^(.*)\.([01])$/);
-    if (m) {
-      const base = m[1];
-      const arr = chunks.get(base) || ["", ""];
-      arr[+m[2]] = v;
-      chunks.set(base, arr);
-    } else if (!map.has(k)) {
-      map.set(k, v);
-    }
-  }
-  for (const [base, arr] of chunks) {
-    if (!map.has(base)) map.set(base, (arr[0] || "") + (arr[1] || ""));
-  }
+  for (const [k, v] of pairs) if (!map.has(k)) map.set(k, v);
   const out = [...map.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
-  const hasSession =
-    map.has("__Secure-next-auth.session-token") || map.has("next-auth.session-token");
+  const hasSession = [...map.keys()].some(
+    (k) => k.startsWith("__Secure-next-auth.session-token") || k.startsWith("next-auth.session-token")
+  );
   const hasDid = map.has("oai-did");
   return { cookies: out, hasSession, hasDid };
 }
@@ -66,7 +74,7 @@ const SNIPPET = `(async () => {
   console.log('accessToken umur ~9 hari:', out.accessToken.slice(0, 24) + '...');
   console.log('PENTING: cookie HttpOnly TIDAK kebaca JS. Untuk seed permanen pakai export Cookie-Editor; untuk cepat pakai accessToken saja.');
   copy(JSON.stringify(out));
-  return 'COPIED — tempel di form Accounts (kolom Cookies kalau full JSON export, atau kolom accessToken)';
+  return 'COPIED — tempel di kotak paste halaman Accounts, klik Konversi';
 })()`;
 
 export default function Accounts() {
@@ -86,16 +94,19 @@ export default function Accounts() {
     const r = parseCookieInput(paste);
     setErr(r.error || "");
     if (r.error) return;
+    const parts = [];
     if (r.accessToken) {
       setForm((f) => ({ ...f, accessToken: r.accessToken }));
-      setNotice("accessToken terisi — umur ±9 hari.");
+      parts.push("accessToken terisi (umur ±9 hari)");
     }
     if (r.cookies) {
       setForm((f) => ({ ...f, cookies: r.cookies }));
-      setNotice(
-        `Cookies ${r.cookies.length} char terisi — session-token ${r.hasSession ? "ADA ✅" : "TIDAK KEPIKET ⚠️ (HttpOnly: pakai export Cookie-Editor)"} · oai-did ${r.hasDid ? "ADA ✅" : "(gak ada, device-id random)"}`
+      parts.push(
+        `Cookies ${r.cookies.length} char — session-token ${r.hasSession ? "ADA ✅" : "TIDAK KEPIKET ⚠️ (HttpOnly: pakai export Cookie-Editor)"} · oai-did ${r.hasDid ? "ADA ✅" : "(gak ada, device-id random)"}`
       );
     }
+    if (r.cookieWarn) parts.push(r.cookieWarn);
+    setNotice(parts.join(" · "));
     setPaste("");
   };
 
