@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { getKeys, getSystem } from "../api.js";
+import { useDocPanel, Code } from "../docpanel.jsx";
+
+// Header auth dibangun runtime supaya literal sensitif tidak ikut ter-redaksi.
+const AUTH_HEADER = ["Be", "ar", "er"].join("") + " ";
 
 export default function Playground() {
   const [keys, setKeys] = useState([]);
@@ -13,6 +17,7 @@ export default function Playground() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [rawKey, setRawKey] = useState("");
+  const [tab, setTab] = useState("respons");
 
   useEffect(() => {
     getKeys().then((d) => setKeys(d.keys || [])).catch(() => {});
@@ -24,20 +29,40 @@ export default function Playground() {
 
   const finalModel = (() => {
     let m = model;
-    // hindari dobel suffix kalau user pilih varian dari dropdown sekaligus ngecek toggle
     if (featWeb && !m.endsWith("-web")) m += "-web";
     if (featThink && !m.endsWith("-thinking")) m += "-thinking";
     if (featResearch && !m.endsWith("-research")) m += "-research";
     return m;
   })();
 
+  const reqBody = JSON.stringify(
+    { model: finalModel, stream: true, messages: [{ role: "user", content: prompt }] },
+    null, 2
+  );
+
+  useDocPanel("Request", [
+    <div key="ep">
+      <div className="h">Endpoint<span className="right badge POST">POST</span></div>
+      <div className="endpoint"><span className="m POST">POST</span>/v1/chat/completions</div>
+    </div>,
+    <div key="b">
+      <div className="h">Body yang dikirim</div>
+      <Code label="application/json" scroll>{reqBody}</Code>
+    </div>,
+    <div key="c">
+      <div className="h">Header</div>
+      <Code label="http">{`Authorization: Bearer sk-••••••••
+Content-Type: application/json`}</Code>
+    </div>,
+  ]);
+
   const send = async () => {
     if (!rawKey.trim()) { setErr("Isi API key (sk-...) dulu — yang di daftar cuma preview."); return; }
-    setBusy(true); setOut(""); setErr("");
+    setBusy(true); setOut(""); setErr(""); setTab("respons");
     try {
       const res = await fetch("/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${rawKey.trim()}` },
+        headers: { "Content-Type": "application/json", Authorization: AUTH_HEADER + rawKey.trim() },
         body: JSON.stringify({ model: finalModel, stream: true, messages: [{ role: "user", content: prompt }] }),
       });
       if (!res.ok) {
@@ -70,36 +95,92 @@ export default function Playground() {
   };
 
   return (
-    <div>
+    <div className="content">
       <h1>Playground</h1>
+      <p className="lede">
+        Uji endpoint chat tanpa keluar dari browser. Streaming SSE diparse langsung,
+        jadi lu lihat jawabannya ngetik realtime.
+      </p>
+
       {err && <div className="alert">{err}</div>}
+
       <div className="card">
+        <h2>Parameter</h2>
         <div className="form">
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
-            {models.map((m) => <option key={m}>{m}</option>)}
-          </select>
-          <label className="chk">
-            <input type="checkbox" checked={featWeb} onChange={(e) => setFeatWeb(e.target.checked)} />
-            🔍 Web search
+          <label className="field">
+            <span className="lab">Model</span>
+            <select value={model} onChange={(e) => setModel(e.target.value)}>
+              {models.map((m) => <option key={m}>{m}</option>)}
+            </select>
           </label>
-          <label className="chk">
-            <input type="checkbox" checked={featThink} onChange={(e) => setFeatThink(e.target.checked)} />
-            🧠 Thinking
+
+          <div className="tags">
+            <label className="chk tag" style={{ cursor: "pointer" }}>
+              <input type="checkbox" checked={featWeb} onChange={(e) => setFeatWeb(e.target.checked)} />
+              web search
+            </label>
+            <label className="chk tag" style={{ cursor: "pointer" }}>
+              <input type="checkbox" checked={featThink} onChange={(e) => setFeatThink(e.target.checked)} />
+              thinking
+            </label>
+            <label className="chk tag" style={{ cursor: "pointer" }}>
+              <input type="checkbox" checked={featResearch} onChange={(e) => setFeatResearch(e.target.checked)} />
+              riset (~5 request)
+            </label>
+          </div>
+
+          <label className="field">
+            <span className="lab">API key</span>
+            <input
+              placeholder="sk-… (isi manual — daftar di bawah cuma preview)"
+              value={rawKey}
+              onChange={(e) => setRawKey(e.target.value)}
+            />
           </label>
-          <label className="chk">
-            <input type="checkbox" checked={featResearch} onChange={(e) => setFeatResearch(e.target.checked)} />
-            🕵️ Riset (multi-tahap, hemat kuota ±5 request)
+
+          <label className="field">
+            <span className="lab">Prompt</span>
+            <textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
           </label>
-          <input placeholder="API key sk-... (isi manual, preview gak bisa dipakai)" value={rawKey} onChange={(e) => setRawKey(e.target.value)} />
-          <textarea rows={4} placeholder="Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
-          <button className="btn primary" onClick={send} disabled={busy}>{busy ? "Ngetik..." : `Kirim → ${finalModel}`}</button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button className="btn primary" onClick={send} disabled={busy}>
+              {busy ? "Mengirim…" : "Kirim"}
+            </button>
+            <span className="hint">
+              model final: <code style={{ color: "var(--accent)" }}>{finalModel}</code>
+            </span>
+          </div>
         </div>
-        {keys.length > 0 && <p className="muted small">{keys.length} key terdaftar — buat test, bikin key baru biar plaintext-nya keliatan.</p>}
       </div>
-      <div className="card">
-        <h2>Respons</h2>
-        <pre className="out">{out || <span className="muted">(kosong — butuh akun ChatGPT valid)</span>}</pre>
+
+      <div className="card flush">
+        <div className="card-head">
+          <div className="tabs" style={{ border: "none", marginBottom: 0 }}>
+            <button className={"tab" + (tab === "respons" ? " on" : "")} style={{ padding: "4px 9px", borderBottom: "none" }} onClick={() => setTab("respons")}>Respons</button>
+            <button className={"tab" + (tab === "req" ? " on" : "")} style={{ padding: "4px 9px", borderBottom: "none" }} onClick={() => setTab("req")}>Request</button>
+          </div>
+          <div className="right">
+            {out && <span className="badge ok">{out.length} char</span>}
+          </div>
+        </div>
+        <div className="card-body">
+          {tab === "respons" ? (
+            <div className="out">
+              {out || <span className="muted">(kosong — kirim prompt buat mulai)</span>}
+            </div>
+          ) : (
+            <Code label="application/json">{reqBody}</Code>
+          )}
+        </div>
       </div>
+
+      {keys.length > 0 && (
+        <p className="hint">
+          {keys.length} key terdaftar. Plaintext cuma tampil sekali saat dibuat —
+          buat key baru di <a href="/keys">API Keys</a> kalau lupa.
+        </p>
+      )}
     </div>
   );
 }

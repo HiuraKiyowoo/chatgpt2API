@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { login } from "../api.js";
+import { login as adminLogin } from "../api.js";
 
 export default function Login() {
-  const [u, setU] = useState("");
+  const [u, setU] = useState("admin");
   const [p, setP] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -11,22 +11,35 @@ export default function Login() {
     e.preventDefault();
     setBusy(true); setErr("");
     try {
-      const { token } = await login(u, p);
-      localStorage.setItem("admin_token", token);
+      const r = await adminLogin(u, p);
+      localStorage.setItem("admin_token", r.token);
       location.href = "/";
-    } catch (ex) { setErr(ex.message); }
+    } catch (ex) {
+      setErr(ex.message);
+    }
     setBusy(false);
   };
 
   return (
     <div className="center-screen">
-      <form className="card login" onSubmit={submit}>
-        <h1>⚡ chatgpt2API</h1>
-        <p className="muted">Masuk admin dashboard</p>
-        <input placeholder="Username" value={u} onChange={(e) => setU(e.target.value)} autoFocus />
-        <input placeholder="Password" type="password" value={p} onChange={(e) => setP(e.target.value)} />
-        {err && <div className="alert">{err}</div>}
-        <button className="btn primary" disabled={busy}>{busy ? "Memeriksa..." : "Masuk"}</button>
+      <form className="login" onSubmit={submit}>
+        <div className="logo"><span className="mark">C2</span> chatgpt2API</div>
+        <p className="muted small" style={{ margin: "0 0 6px" }}>
+          Masuk ke konsol admin untuk mengelola akun, API key, dan memantau trafik.
+        </p>
+        {err && <div className="alert" style={{ marginBottom: 0 }}>{err}</div>}
+        <label className="field">
+          <span className="lab">Username</span>
+          <input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" />
+        </label>
+        <label className="field">
+          <span className="lab">Password</span>
+          <input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" />
+        </label>
+        <button className="btn primary" disabled={busy}>{busy ? "Masuk…" : "Masuk"}</button>
+        <div className="note">
+          Kredensial default ada di <code>config.yaml</code> → <code>admin</code>.
+        </div>
       </form>
     </div>
   );

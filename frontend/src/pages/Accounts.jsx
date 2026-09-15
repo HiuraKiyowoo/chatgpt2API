@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { getAccounts, addAccount, deleteAccount, checkAccount } from "../api.js";
+import { useDocPanel, Code } from "../docpanel.jsx";
 
 // ---- helper konversi input mentah -> cookie string siap pakai ----
 // Menerima 3 format:
@@ -147,9 +148,42 @@ export default function Accounts() {
     try { await navigator.clipboard.writeText(SNIPPET); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
   };
 
+  useDocPanel("Kredensial akun", [
+    <div key="a">
+      <div className="h">Cookie wajib</div>
+      <Code label="minimal">{`__Secure-next-auth.session-token.0=…
+__Secure-next-auth.session-token.1=…
+oai-did=…`}</Code>
+    </div>,
+    <div key="b">
+      <div className="h">Aturan</div>
+      <table className="t">
+        <tbody>
+          <tr><td className="k">chunk .0/.1</td><td className="desc">JANGAN digabung — server cuma ngenalin bentuk terpisah</td></tr>
+          <tr><td className="k">expired</td><td className="desc">Otomatis dibuang saat Konversi</td></tr>
+          <tr><td className="k">HttpOnly</td><td className="desc">session-token gak kebaca JS → butuh Cookie-Editor</td></tr>
+        </tbody>
+      </table>
+    </div>,
+    <div key="c">
+      <div className="h">Umur</div>
+      <table className="t">
+        <tbody>
+          <tr><td className="k">cookie penuh</td><td className="ty">±90 hari</td></tr>
+          <tr><td className="k">accessToken</td><td className="ty">±9 hari</td></tr>
+        </tbody>
+      </table>
+    </div>,
+  ]);
+
   return (
-    <div>
+    <div className="content">
       <h1>Accounts</h1>
+      <p className="lede">
+        Satu baris = satu akun ChatGPT. Gateway tukar cookie sesi jadi accessToken
+        otomatis tiap request, dan memutar cookie-nya kalau server mengirim yang baru.
+      </p>
+
       {err && <div className="alert">{err}</div>}
       {notice && <div className="notice">{notice}</div>}
 
